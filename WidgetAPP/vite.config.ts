@@ -6,10 +6,10 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     lib: {
-      entry: 'src/index.tsx',
+      entry: 'src/index-wrapper.ts',  // <-- qui cambio da index.tsx a index-wrapper.ts
       name: 'MyPoetryApp',
       fileName: (format) => `my-poetry-app.${format}.js`,
-      formats: ['iife']
+      formats: ['iife'],
     },
     rollupOptions: {
       external: ['react', 'react-dom', '@supabase/supabase-js'],
@@ -17,9 +17,10 @@ export default defineConfig({
         globals: {
           react: 'React',
           'react-dom': 'ReactDOM',
-          '@supabase/supabase-js': 'Supabase'
-        }
-      }
-    }
-  }
+          '@supabase/supabase-js': 'Supabase',
+        },
+        exports: 'named',  // assicurati export named
+      },
+    },
+  },
 })
