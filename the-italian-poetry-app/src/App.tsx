@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { supabase } from './lib/supabaseClient'
+import { supabase } from './.lib/supabaseClient'
 
 function PoesiaBox({ poesia }: { poesia: any }) {
   const [aperta, setAperta] = useState(false)
