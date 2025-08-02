@@ -1,18 +1,15 @@
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
-
 export default defineConfig({
   plugins: [react()],
   build: {
     outDir: 'dist',
     lib: {
       entry: 'src/index.tsx',
-      name: 'MyPoetryApp',
+      name: 'MyPoetryApp',          // Il nome globale esposto (must match window.MyPoetryApp)
       fileName: (format) => `my-poetry-app.${format}.js`,
       formats: ['iife']
     },
     rollupOptions: {
-      external: ['react', 'react-dom', '@supabase/supabase-js'],
+      external: ['react', 'react-dom', '@supabase/supabase-js'], // esclude queste da bundle
       output: {
         globals: {
           react: 'React',
