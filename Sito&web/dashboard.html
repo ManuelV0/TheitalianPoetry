@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <title>Dashboard Poesie</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    body { font-family: sans-serif; padding: 20px; max-width: 800px; margin: auto; }
+    h1 { color: #2c3e50; }
+    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+    th, td { padding: 10px; border-bottom: 1px solid #ccc; }
+    th { background: #f0f0f0; }
+    input, textarea, select { width: 100%; padding: 8px; margin: 5px 0; }
+    button { margin: 5px 5px 0 0; padding: 8px 12px; cursor: pointer; }
+    .form { margin-top: 30px; padding: 15px; background: #f9f9f9; border: 1px solid #ddd; }
+  </style>
+</head>
+<body>
+  <h1>Gestione Poesie</h1>
+
+  <button onclick="loadPoems()">🔄 Ricarica</button>
+  <div id="poems">Caricamento...</div>
+
+  <div class="form">
+    <h2 id="form-title">Nuova Poesia</h2>
+    <form id="poem-form">
+      <input type="hidden" id="poem-id">
+      
+      <label>Titolo:<br>
+        <input type="text" id="title" required>
+      </label><br>
+
+      <label>Contenuto:<br>
+        <textarea id="content" required></textarea>
+      </label><br>
+
+      <label>Stato:<br>
+        <select id="status" required>
+          <option value="draft">Bozza</option>
+          <option value="published">Pubblicato</option>
+        </select>
+      </label><br>
+
+      <label>Autore:<br>
+        <input type="text" id="author" required>
+      </label><br>
+
+      <label>Categoria:<br>
+        <select id="categoria" required>
+          <option value="">-- Seleziona --</option>
+          <option value="origine">L'origine del Male</option>
+          <option value="frammenti">Frammenti</option>
+          <option value="inedita">Inedita</option>
+        </select>
+      </label><br>
+
+      <button type="submit">💾 Salva</button>
+      <button type="button" onclick="resetForm()">Annulla</button>
+    </form>
+  </div>
+
+  <script>
+    const supabase = window.supabase.createClient(
+      'https://djikypgmchywybjxbwar.supabase.co',
+      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRqaWt5cGdtY2h5d3lianhid2FyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTMyMTMyOTIsImV4cCI6MjA2ODc4OTI5Mn0.dXqWkg47xTg2YtfLhBLrFd5AIB838KdsmR9qsMPkk8Q'
+    );
+
+    async function loadPoems() {
+      const container = document.getElementById('poems');
+      container.textContent = 'Caricamento...';
+
+      const { data, error } = await supabase
+        .from('poems')
+        .select('*')
+        .order('ordine', { ascending: true });
+
+      if (error) {
+        console.error('Errore nel caricamento:', error);
+        container.textContent = '❌ Errore nel caricamento delle poesie';
+        return;
+      }
+
+      if (!data || data.length === 0) {
+        container.textContent = 'Nessuna poesia trovata';
+        return;
+      }
+
+      container.innerHTML = `
+        <table>
+          <thead>
+            <tr>
+              <th>Titolo</th>
+              <th>Autore</th>
+              <th>Stato</th>
+              <th>Categoria</th>
+              <th>Azioni</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${data.map(p => `
+              <tr>
+                <td>${p.title}</td>
+                <td>${p.author_username || ''}</td>
+                <td>${p.status}</td>
+                <td>${p.categoria || ''}</td>
+                <td>
+                  <button onclick="editPoem('${p.id}')">✏️</button>
+                  <button onclick="deletePoem('${p.id}')">🗑️</button>
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      `;
+    }
+
+    document.getElementById('poem-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const id = document.getElementById('poem-id').value;
+      const poem = {
+        title: document.getElementById('title').value,
+        content: document.getElementById('content').value,
+        status: document.getElementById('status').value,
+        author_username: document.getElementById('author').value,
+        categoria: document.getElementById('categoria').value
+      };
+
+      if (id) {
+        await supabase.from('poems').update(poem).eq('id', id);
+      } else {
+        await supabase.from('poems').insert([poem]);
+      }
+
+      resetForm();
+      loadPoems();
+    });
+
+    async function editPoem(id) {
+      const { data, error } = await supabase.from('poems').select('*').eq('id', id).single();
+
+      if (error) {
+        alert('Errore nel caricamento della poesia');
+        return;
+      }
+
+      document.getElementById('poem-id').value = data.id;
+      document.getElementById('title').value = data.title;
+      document.getElementById('content').value = data.content;
+      document.getElementById('status').value = data.status;
+      document.getElementById('author').value = data.author_username || '';
+      document.getElementById('categoria').value = data.categoria || '';
+      document.getElementById('form-title').textContent = 'Modifica Poesia';
+    }
+
+    async function deletePoem(id) {
+      if (confirm('Vuoi davvero eliminare questa poesia?')) {
+        await supabase.from('poems').delete().eq('id', id);
+        loadPoems();
+      }
+    }
+
+    function resetForm() {
+      document.getElementById('poem-form').reset();
+      document.getElementById('poem-id').value = '';
+      document.getElementById('form-title').textContent = 'Nuova Poesia';
+      document.getElementById('categoria').value = '';
+    }
+
+    loadPoems();
+  </script>
+</body>
+</html>

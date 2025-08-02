@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Autore - TheItalianPoetry</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700;800&family=Open+Sans:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
+
+  <style>
+    :root {
+      --c-sfondo: #f9f9f9;
+      --c-superficie: #ffffff;
+      --c-primario: #4caf50;
+      --c-primario-hover: #45a049;
+      --c-secondario: #2196f3;
+      --c-testo: #222;
+      --c-testo-leggero: #555;
+      --ombra: 0 5px 20px rgba(0, 0, 0, 0.07);
+      --bordo-arrotondato: 10px;
+      --spazio-sm: 0.5rem;
+      --spazio-md: 1rem;
+      --spazio-lg: 1.5rem;
+      --spazio-xl: 2.5rem;
+      --font-body: 'Open Sans', sans-serif;
+      --font-heading: 'Montserrat', sans-serif;
+      --header-height: 70px;
+      --transizione: all 0.3s ease;
+    }
+
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: var(--font-body);
+      background-color: var(--c-sfondo);
+      color: var(--c-testo);
+      padding-top: var(--header-height);
+      line-height: 1.7;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: var(--spazio-lg);
+    }
+
+    .main-header {
+      background-color: var(--c-superficie);
+      box-shadow: var(--ombra);
+      padding: 0 var(--spazio-lg);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: var(--header-height);
+      position: fixed;
+      top: 0;
+      width: 100%;
+      z-index: 1000;
+    }
+
+    .logo {
+      font-family: var(--font-heading);
+      font-weight: 800;
+      font-size: 1.5rem;
+      color: var(--c-primario);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      text-decoration: none;
+    }
+
+    .poems-section {
+      margin-top: var(--spazio-xl);
+    }
+
+    .section-title {
+      font-family: var(--font-heading);
+      font-size: 1.8rem;
+      text-align: center;
+      margin-bottom: var(--spazio-lg);
+      color: var(--c-testo);
+    }
+
+    .poems-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: var(--spazio-lg);
+    }
+
+    .poem-card {
+      background-color: var(--c-superficie);
+      padding: var(--spazio-lg);
+      border-radius: var(--bordo-arrotondato);
+      box-shadow: var(--ombra);
+      transition: var(--transizione);
+    }
+
+    .poem-card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+    }
+
+    .poem-card h3 {
+      font-family: var(--font-heading);
+      color: var(--c-primario);
+      margin: 0 0 var(--spazio-sm) 0;
+    }
+
+    .poem-card .poem-text {
+      white-space: pre-line;
+      color: var(--c-testo-leggero);
+    }
+
+    .verse-line {
+      display: block;
+      margin-bottom: 0.3em;
+    }
+
+    .initial-letter {
+      display: inline-block;
+      font-weight: bold;
+      opacity: 0.1;
+      transform: scale(1);
+      transition: all 0.4s ease-out;
+      transform-origin: bottom left;
+    }
+
+    .initial-letter.visible {
+      opacity: 1;
+      transform: scale(1.05);
+      text-shadow: 0 0 6px rgba(255, 255, 255, 0.3),
+                   0 0 8px var(--c-primario);
+      color: var(--c-primario);
+    }
+
+    .author-profile {
+      background-color: var(--c-superficie);
+      padding: var(--spazio-xl);
+      border-radius: var(--bordo-arrotondato);
+      box-shadow: var(--ombra);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      gap: var(--spazio-md);
+    }
+
+    .author-image-container {
+      width: 150px;
+      height: 150px;
+      border-radius: 50%;
+      overflow: hidden;
+      border: 4px solid var(--c-primario);
+      margin-bottom: var(--spazio-md);
+    }
+
+    .author-image {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .author-title h1 {
+      font-family: var(--font-heading);
+      font-size: 2rem;
+      margin: 0;
+    }
+
+    .author-bio {
+      font-size: 1rem;
+      color: var(--c-testo-leggero);
+      max-width: 700px;
+      margin-top: var(--spazio-sm);
+    }
+  </style>
+</head>
+<body>
+
+  <header class="main-header">
+    <a href="index.html" class="logo">
+      <i class="fa-solid fa-feather-pointed"></i>
+      <span>TheItalianPoetry</span>
+    </a>
+  </header>
+
+  <main class="container">
+
+    <section class="author-profile">
+      <div class="author-image-container">
+        <img class="author-image" src="immagini/Autore.png.png" alt="" />
+      </div>
+      <div class="author-details">
+        <div class="author-title">
+          <h1>NoName</h1>
+        </div>
+        <p class="author-bio">
+          Pagina di poesia e frammenti emotivi. Qui si scrive di assenze, identità, silenzi e desideri. Un linguaggio che inciampa, si spezza e tenta di dire l'indicibile. Scrivo per non dimenticare cosa significa sentire. Tra fratture e verità scomposte, le mie parole cercano un nome dove tutto si è perso. Vivo nel confine tra luce e ombra: lì dove la poesia non consola, ma racconta — di una persona senza nome.
+        </p>
+      </div>
+    </section>
+
+    <!-- SEZIONE 1 -->
+    <section class="poems-section">
+      <h2 class="section-title">L'origine del Male</h2>
+      <div class="poems-grid" id="poems-grid">
+        Caricamento...
+      </div>
+    </section>
+
+    <!-- SEZIONE 2 -->
+    <section class="poems-section">
+      <h2 class="section-title">Frammenti</h2>
+      <div class="poems-grid" id="frammenti-poems-grid">
+        Caricamento...
+      </div>
+    </section>
+
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script>
+    const supabase = window.supabase.createClient(
+      'https://djikypgmchywybjxbwar.supabase.co',
+      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRqaWt5cGdtY2h5d3lianhid2FyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTMyMTMyOTIsImV4cCI6MjA2ODc4OTI5Mn0.dXqWkg47xTg2YtfLhBLrFd5AIB838KdsmR9qsMPkk8Q'
+    );
+
+    async function loadPoems() {
+      await loadCategoryPoems('origine', 'poems-grid');
+      await loadCategoryPoems('frammenti', 'frammenti-poems-grid');
+      animateInitialLetters();
+    }
+
+	async function loadCategoryPoems(categoria, containerId) {
+  const container = document.getElementById(containerId);
+  const { data, error } = await supabase
+    .from('poems')
+    .select('*')
+    .eq('categoria', categoria)
+    .order('ordine', { ascending: true });
+
+  if (error || !data || data.length === 0) {
+    container.innerHTML = `<p>Nessuna poesia trovata per questa sezione.</p>`;
+    return;
+  }
+
+  container.innerHTML = data.map(poem => {
+    const showInitials = categoria !== "frammenti"; // 👈 solo se non è frammenti
+    return `
+      <article class="poem-card">
+        <h3>${poem.title}</h3>
+        <p class="poem-text">
+          ${poem.content
+            .split('\n')
+            .map(line => {
+              const first = line.charAt(0);
+              const rest = line.slice(1);
+              if (showInitials) {
+                return `<span class="verse-line"><span class="initial-letter">${first}</span>${rest}</span>`;
+              } else {
+                return `<span class="verse-line">${line}</span>`; // no effetto
+              }
+            })
+            .join('')}
+        </p>
+      </article>
+    `;
+  }).join('');
+
+  // Applica effetto cometa SOLO se non è frammenti
+  if (categoria !== "frammenti") {
+    const observer = new IntersectionObserver(entries => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          const letters = entry.target.querySelectorAll('.initial-letter');
+          letters.forEach((el, i) => {
+            setTimeout(() => {
+              el.classList.add('visible');
+            }, i * 120);
+          });
+        }
+      });
+    }, { threshold: 0.4 });
+
+    container.querySelectorAll('.poem-card').forEach(card => {
+      observer.observe(card);
+    });
+  }
+}
+
+    document.addEventListener('DOMContentLoaded', loadPoems);
+  </script>
+</body>
+</html>
