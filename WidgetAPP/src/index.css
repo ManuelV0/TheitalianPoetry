@@ -1,0 +1,17 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Personalizzazioni base */
+
+body {
+  @apply bg-gray-50 text-gray-900 font-sans p-4;
+}
+
+a {
+  @apply text-green-600 no-underline;
+}
+
+a:hover {
+  @apply underline;
+}
