@@ -8,14 +8,13 @@ const mount = (el: HTMLElement) => {
   return () => root.unmount()
 }
 
-// Solo per sviluppo, non fa nulla in produzione:
 if (process.env.NODE_ENV === 'development') {
   const devRoot = document.getElementById('root')
   if (devRoot) mount(devRoot)
 }
 
-// AGGIUNGI QUESTO!
-if (typeof window !== "undefined") {
+// Questa riga è cruciale:
+if (typeof window !== 'undefined') {
   // @ts-ignore
   window.MyPoetryApp = { mount }
 }
