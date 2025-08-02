@@ -9,17 +9,17 @@ export default defineConfig({
       entry: 'src/index.tsx',
       name: 'MyPoetryApp',
       fileName: (format) => `my-poetry-app.${format}.js`,
-      formats: ['iife'], // bundle auto-eseguibile per uso diretto con <script>
+      formats: ['iife']
     },
     rollupOptions: {
-      // Non includere react/react-dom nel bundle, si assumono caricati esternamente
-      external: ['react', 'react-dom'],
+      external: ['react', 'react-dom', '@supabase/supabase-js'],
       output: {
         globals: {
           react: 'React',
           'react-dom': 'ReactDOM',
-        },
-      },
-    },
-  },
+          '@supabase/supabase-js': 'Supabase'
+        }
+      }
+    }
+  }
 })
