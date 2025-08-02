@@ -6,7 +6,7 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     lib: {
-      entry: 'src/index-wrapper.ts',  // <-- qui cambio da index.tsx a index-wrapper.ts
+      entry: 'src/index-wrapper.ts',
       name: 'MyPoetryApp',
       fileName: (format) => `my-poetry-app.${format}.js`,
       formats: ['iife'],
@@ -19,7 +19,7 @@ export default defineConfig({
           'react-dom': 'ReactDOM',
           '@supabase/supabase-js': 'Supabase',
         },
-        exports: 'named',  // assicurati export named
+        exports: 'named',  // importante per export named
       },
     },
   },
