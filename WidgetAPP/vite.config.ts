@@ -1,15 +1,11 @@
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
-
+// vite.config.ts
 export default defineConfig({
-  plugins: [react()],
   build: {
-    outDir: 'dist',
     lib: {
       entry: 'src/index.tsx',
       name: 'MyPoetryApp',
-      fileName: 'my-poetry-app',
-      formats: ['iife']
+      formats: ['iife'],
+      fileName: 'my-poetry-app'
     },
     rollupOptions: {
       external: ['react', 'react-dom'],
@@ -17,7 +13,9 @@ export default defineConfig({
         globals: {
           react: 'React',
           'react-dom': 'ReactDOM'
-        }
+        },
+        // Garantisce l'esportazione globale
+        footer: 'window.MyPoetryApp = { mount: default };'
       }
     }
   }
