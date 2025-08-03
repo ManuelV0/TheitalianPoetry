@@ -1,18 +1,14 @@
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
-
-export default defineConfig({
-  plugins: [react()],
+// vite.config.js
+export default {
   build: {
-    outDir: 'dist',
     lib: {
+      formats: ['iife'], // Solo IIFE
+      name: 'MyPoetryApp', // Case-sensitive
       entry: 'src/index.tsx',
-      name: 'MyPoetryApp',           // << NOME DELLA GLOBALE
-      fileName: 'my-poetry-app.js',  // << NOME FISSO, niente hash/format
-      formats: ['iife']
+      fileName: 'my-poetry-app' // Nome fisso
     },
     rollupOptions: {
-      external: ['react', 'react-dom'], // Supabase viene INCLUSO nel bundle!
+      external: ['react', 'react-dom'], // Supabase incluso
       output: {
         globals: {
           react: 'React',
@@ -21,4 +17,4 @@ export default defineConfig({
       }
     }
   }
-})
+}
