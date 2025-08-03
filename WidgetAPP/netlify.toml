@@ -1,13 +1,6 @@
 [build]
-  command = "npm install && npm run build"
   publish = "dist"
+  functions = "netlify/functions"
 
-[build.environment]
-  NODE_VERSION = "18"
-  NPM_VERSION = "9"
-  VITE_APP_MODE = "production"
-
-[[redirects]]
-  from = "/*"
-  to = "/index.html"
-  status = 200
+[dev]
+  autoLaunch = true
