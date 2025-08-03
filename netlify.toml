@@ -7,7 +7,10 @@
   for = "/*.js"
   [headers.values]
     Access-Control-Allow-Origin = "*"
-    Cache-Control = "no-store"
+    Vary = "Origin"
+    Cache-Control = "no-cache, no-store, must-revalidate"
+    Netlify-CDN-Cache-Control = "public, max-age=0, stale-while-revalidate=0"
+    Timing-Allow-Origin = "*"
 
 
 [dev]
