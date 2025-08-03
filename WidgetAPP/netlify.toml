@@ -6,11 +6,17 @@
 [build.environment]
   NODE_VERSION = "18"
   NPM_VERSION = "9"
-  OPENAI_API_KEY = "@openai_api_key" # Usa variabili d'ambiente
+  VITE_APP_MODE = "production"
+  CI = "true"
 
-[dev]
-  autoLaunch = true
-  framework = "#custom"
+[context.deploy-preview.environment]
+  VITE_APP_MODE = "staging"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    Content-Security-Policy = "default-src 'self'"
 
 [[redirects]]
   from = "/*"
