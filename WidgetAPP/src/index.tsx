@@ -2,6 +2,7 @@ import * as React from 'react';
 import * as ReactDOM from 'react-dom/client';
 import App from './App';
 
+// Funzione mount per esporre il widget
 const mount = (el: HTMLElement) => {
   const root = ReactDOM.createRoot(el);
   root.render(
@@ -12,7 +13,7 @@ const mount = (el: HTMLElement) => {
   return () => root.unmount();
 };
 
-// Tipo globale TypeScript
+// Tipizzazione globale TypeScript per evitare errori
 declare global {
   interface Window {
     MyPoetryApp: {
@@ -21,9 +22,9 @@ declare global {
   }
 }
 
-// Inizializzazione widget
+// Funzione di inizializzazione widget
 const initWidget = () => {
-  // Modalità sviluppo
+  // Se sei in sviluppo, monta subito nell'elemento #root
   if (import.meta.env.DEV) {
     const devRoot = document.getElementById('root');
     if (devRoot) {
@@ -31,23 +32,24 @@ const initWidget = () => {
       console.log('[DEV] Widget montato in sviluppo');
     }
   }
-
-  // Esposizione globale
+  // Esposizione globale (PRODUZIONE)
   window.MyPoetryApp = { mount };
   console.log('[PROD] Widget esposto come globale:', window.MyPoetryApp);
 };
 
-// Verifica ambiente browser
+// Assicurati che sia ambiente browser
 if (typeof window !== 'undefined') {
   initWidget();
 }
 
-// Supporto HMR per Vite
+// Supporto HMR per Vite (opzionale, serve solo in sviluppo)
 if (import.meta.hot) {
   import.meta.hot.accept();
   import.meta.hot.dispose(() => {
     document.querySelectorAll('#root').forEach(el => {
-      el?.unmount?.();
+      // Pulizia manuale se necessario (opzionale)
     });
   });
 }
+
+export {};
