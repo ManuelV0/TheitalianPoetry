@@ -1,25 +1,28 @@
+
+
 [build]
-  publish = "dist"
-  functions = "netlify/functions"
-  command = "npm run build"
+  command = "npm run build && echo 'BUILD_SHA=$(git rev-parse HEAD)' > dist/version.txt"
 
 [[headers]]
-  for = "/*.js"
+  for = "/my-poetry-app*.js"
   [headers.values]
-    # CORS Essentials
-    Access-Control-Allow-Origin = "*"
-    Vary = "Origin, Accept-Encoding"
+    # Sicurezza
+    Content-Security-Policy = "default-src 'self' https:; script-src 'self' 'unsafe-inline' https://widget.theitalianpoetryproject.com"
+    Referrer-Policy = "strict-origin-when-cross-origin"
     
-    # Cache Control
-    Cache-Control = "no-cache, max-age=0, must-revalidate"
-    Netlify-CDN-Cache-Control = "public, max-age=0, stale-while-revalidate=0"
-    
-    # Embedding Policies (opzionali, puoi toglierle se non ti servono)
-    Cross-Origin-Embedder-Policy = "unsafe-none"
-    Cross-Origin-Opener-Policy = "same-origin-allow-popups"
+    # Performance
+    Cache-Control = "public, max-age=600, stale-while-revalidate=300"
+    Netlify-CDN-Cache-Control = "public, max-age=3600, stale-while-revalidate=600"
     
     # Debug
-    Timing-Allow-Origin = "*"
+    Server-Timing = "cdn;desc=\"Netlify CDN\""
+    X-Widget-Build = "$(date +%Y%m%d)"
+    X-SourceMap = "/my-poetry-app.iife.js.map"
 
+[[headers]]
+  for = "/version.txt"
+  [headers.values]
+    Cache-Control = "no-store"
+    
 [dev]
   autoLaunch = true
