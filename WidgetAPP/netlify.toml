@@ -5,6 +5,7 @@
 [build.environment]
   NODE_VERSION = "18"
   NPM_VERSION = "9"
+  VITE_APP_MODE = "production"
 
 [[redirects]]
   from = "/*"
