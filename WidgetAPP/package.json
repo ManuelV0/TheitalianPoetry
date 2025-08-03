@@ -1,24 +1,26 @@
 {
-  "name": "poetry-ai-app",
+  "name": "poetry-ai-widget",
   "version": "1.0.0",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "postinstall": "npm run typecheck"
   },
   "dependencies": {
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "openai": "^4.28.0",
-    "@supabase/supabase-js": "^2.39.0"
+    "styled-components": "^6.1.8"
   },
   "devDependencies": {
     "@types/react": "^18.2.55",
     "@types/react-dom": "^18.2.19",
+    "@types/styled-components": "^5.1.28",
     "@vitejs/plugin-react": "^4.2.1",
     "typescript": "^5.3.3",
     "vite": "^5.1.4",
-    "@types/node": "^20.11.0"
+    "@types/node": "^20.11.0",
+    "babel-plugin-styled-components": "^2.1.4"
   }
 }
