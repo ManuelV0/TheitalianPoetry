@@ -11,19 +11,17 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["src/*"],
-      "@components/*": ["src/components/*"]
+      "../lib/*": ["src/lib/*"]
     },
     "types": ["vite/client", "node"],
     "outDir": "./dist-types"
   },
   "include": [
     "src/**/*",
-    "vite.config.ts",
-    "global.d.ts"
+    "vite.config.ts"
   ],
   "exclude": [
     "node_modules",
-    "dist",
-    "**/*.test.ts"
+    "dist"
   ]
 }
