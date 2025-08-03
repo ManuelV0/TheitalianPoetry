@@ -7,18 +7,16 @@ export default defineConfig({
     outDir: 'dist',
     lib: {
       entry: 'src/index.tsx',
-      name: 'MyPoetryApp',
-      fileName: (format) => `my-poetry-app.${format}.js`,
-      formats: ['iife'] // self-executing bundle per uso diretto via <script>
+      name: 'MyPoetryApp',           // << NOME DELLA GLOBALE
+      fileName: 'my-poetry-app.js',  // << NOME FISSO, niente hash/format
+      formats: ['iife']
     },
     rollupOptions: {
-      // Esternalizza le dipendenze che caricherai tramite CDN nel sito principale
-      external: ['react', 'react-dom', '@supabase/supabase-js'],
+      external: ['react', 'react-dom'], // Supabase viene INCLUSO nel bundle!
       output: {
         globals: {
           react: 'React',
-          'react-dom': 'ReactDOM',
-          '@supabase/supabase-js': 'Supabase'
+          'react-dom': 'ReactDOM'
         }
       }
     }
