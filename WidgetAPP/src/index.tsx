@@ -2,7 +2,16 @@ import * as React from 'react';
 import * as ReactDOM from 'react-dom/client';
 import App from './App';
 
-// Funzione mount per esporre il widget
+// 1. Definizione del tipo globale
+declare global {
+  interface Window {
+    MyPoetryApp: {
+      mount: (el: HTMLElement) => () => void;
+    };
+  }
+}
+
+// 2. Funzione mount principale
 const mount = (el: HTMLElement) => {
   const root = ReactDOM.createRoot(el);
   root.render(
@@ -10,46 +19,54 @@ const mount = (el: HTMLElement) => {
       <App />
     </React.StrictMode>
   );
-  return () => root.unmount();
+  
+  // 3. Funzione di cleanup corretta
+  return () => {
+    setTimeout(() => {
+      root.unmount();
+    }, 0);
+  };
 };
 
-// Tipizzazione globale TypeScript per evitare errori
-declare global {
-  interface Window {
-    MyPoetryApp: {
-      mount: typeof mount;
-    };
-  }
-}
-
-// Funzione di inizializzazione widget
+// 4. Inizializzazione controllata
 const initWidget = () => {
-  // Se sei in sviluppo, monta subito nell'elemento #root
+  // Modalità sviluppo
   if (import.meta.env.DEV) {
     const devRoot = document.getElementById('root');
     if (devRoot) {
-      mount(devRoot);
+      const cleanup = mount(devRoot);
       console.log('[DEV] Widget montato in sviluppo');
+      
+      // Cleanup per hot-reload
+      if (import.meta.hot) {
+        import.meta.hot.dispose(cleanup);
+      }
     }
   }
-  // Esposizione globale (PRODUZIONE)
+
+  // Esposizione globale
   window.MyPoetryApp = { mount };
-  console.log('[PROD] Widget esposto come globale:', window.MyPoetryApp);
+  console.log('[PROD] Widget esposto:', window.MyPoetryApp);
 };
 
-// Assicurati che sia ambiente browser
+// 5. Avvio sicuro
 if (typeof window !== 'undefined') {
-  initWidget();
+  try {
+    initWidget();
+  } catch (error) {
+    console.error('[ERROR] Initialization failed:', error);
+  }
 }
 
-// Supporto HMR per Vite (opzionale, serve solo in sviluppo)
+// 6. Supporto HMR avanzato
 if (import.meta.hot) {
-  import.meta.hot.accept();
-  import.meta.hot.dispose(() => {
-    document.querySelectorAll('#root').forEach(el => {
-      // Pulizia manuale se necessario (opzionale)
+  import.meta.hot.accept('./App', () => {
+    const roots = document.querySelectorAll('#root');
+    roots.forEach(el => {
+      if (el._reactRoot) {
+        const cleanup = mount(el);
+        cleanup();
+      }
     });
   });
 }
-
-export {};
