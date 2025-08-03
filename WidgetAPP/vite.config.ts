@@ -1,36 +1,42 @@
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
-import path from 'path'
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+import path from 'path';
 
 export default defineConfig({
-  plugins: [react()],
-  resolve: {
-    alias: {
-      '@': path.resolve(__dirname, './src'),
-      'lib': path.resolve(__dirname, './src/lib')
-    }
-  },
+  plugins: [
+    react({
+      jsxRuntime: 'classic' // Compatibilità con build IIFE
+    })
+  ],
   build: {
     outDir: 'dist',
     emptyOutDir: true,
     lib: {
       entry: path.resolve(__dirname, 'src/index.tsx'),
       name: 'MyPoetryApp',
-      fileName: 'my-poetry-app',
+      fileName: (format) => `my-poetry-app.${format}.js`,
       formats: ['iife']
     },
     rollupOptions: {
-      external: ['react', 'react-dom'],
+      external: ['react', 'react-dom', '@supabase/supabase-js'],
       output: {
         globals: {
           react: 'React',
-          'react-dom': 'ReactDOM'
+          'react-dom': 'ReactDOM',
+          '@supabase/supabase-js': 'supabase'
         },
-        footer: 'window.MyPoetryApp = { mount: default };'
+        // Assicura l'esportazione globale
+        intro: 'const global = window;',
+        outro: 'if (typeof window !== "undefined") window.MyPoetryApp = { mount: default };'
       }
     }
   },
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, './src')
+    }
+  },
   define: {
-    'process.env': process.env
+    'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'production')
   }
-})
+});
