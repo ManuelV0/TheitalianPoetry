@@ -6,7 +6,26 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
-      '/src': path.resolve(__dirname, 'src'), // Optional: solo se vuoi usare /src nei tuoi import
+      '/src': path.resolve(__dirname, 'src'),
     },
+  },
+  build: {
+    lib: {
+      entry: path.resolve(__dirname, 'src/index.tsx'), // entrypoint del widget
+      name: 'MyPoetryApp', // nome globale su window
+      fileName: (format) => `my-poetry-app.${format}.js`,
+      formats: ['iife'],
+    },
+    rollupOptions: {
+      external: ['react', 'react-dom'],
+      output: {
+        globals: {
+          react: 'React',
+          'react-dom': 'ReactDOM',
+        },
+      },
+    },
+    outDir: 'dist',
+    emptyOutDir: true,
   },
 })
