@@ -4,14 +4,22 @@
   command = "npm run build"
 
 [[headers]]
-  for = "/my-poetry-app.iife.js"
+  for = "/my-poetry-app*.js"
   [headers.values]
+    # CORS Essentials
     Access-Control-Allow-Origin = "*"
     Vary = "Origin, Accept-Encoding"
-    Cache-Control = "no-cache, no-store, must-revalidate"
+    
+    # Cache Control
+    Cache-Control = "no-cache, max-age=0, must-revalidate"
     Netlify-CDN-Cache-Control = "public, max-age=0, stale-while-revalidate=0"
+    
+    # Embedding Policies
+    Cross-Origin-Embedder-Policy = "unsafe-none"
+    Cross-Origin-Opener-Policy = "same-origin-allow-popups"
+    
+    # Debug
     Timing-Allow-Origin = "*"
-    Cross-Origin-Embedder-Policy = "require-corp"
 
 
 [dev]
