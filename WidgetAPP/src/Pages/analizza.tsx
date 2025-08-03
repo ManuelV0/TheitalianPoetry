@@ -1,7 +1,7 @@
 // src/pages/analizza.tsx
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabaseClient';
-import { analizzaPoesiaSeNuova } from '../lib/analizzaNuova';
+import { analizzaNuova } from '../lib/analizzaNuova';
 
 export default function AnalizzaPoesie() {
   const [poesie, setPoesie] = useState<any[]>([]);
