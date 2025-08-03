@@ -3,5 +3,12 @@
   functions = "netlify/functions"
   command = "npm run build"
 
+[[headers]]
+  for = "/*.js"
+  [headers.values]
+    Access-Control-Allow-Origin = "*"
+    Cache-Control = "no-store"
+
+
 [dev]
   autoLaunch = true
