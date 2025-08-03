@@ -1,5 +1,5 @@
 import { supabase } from './supabaseClient';
-import { openai } from './openai';
+import { fetchOpenAIChatCompletion } from './openai';
 
 /**
  * Analizza una poesia con GPT solo se non già presente nel database.
@@ -58,11 +58,10 @@ POESIA:
 ${poesia}
 `;
 
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4o',
-      messages: [{ role: 'user', content: prompt }],
-      temperature: 0.8
-    });
+    // <-- Ecco la parte aggiornata!
+    const completion = await fetchOpenAIChatCompletion([
+      { role: 'user', content: prompt }
+    ]);
 
     const analisi = JSON.parse(completion.choices[0].message.content || '{}');
 
