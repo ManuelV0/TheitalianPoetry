@@ -1,5 +1,10 @@
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+
 export default defineConfig({
+  plugins: [react()],
   build: {
+    outDir: 'dist',
     lib: {
       entry: 'src/index.tsx',
       name: 'MyPoetryApp',
@@ -12,14 +17,7 @@ export default defineConfig({
         globals: {
           react: 'React',
           'react-dom': 'ReactDOM'
-        },
-+       // Aggiungi questa sezione CRUCIALE
-+       intro: 'const global = window;',
-+       footer: () => `
-+         if (typeof window !== 'undefined') {
-+           window.MyPoetryApp = { mount: X };
-+         }
-+       `
+        }
       }
     }
   }
