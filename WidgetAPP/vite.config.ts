@@ -1,13 +1,20 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import path from 'path'
 
 export default defineConfig({
-  plugins: [react()], // Usa il plugin React, non Vue
+  plugins: [react()],
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, './src'),
+      'lib': path.resolve(__dirname, './src/lib')
+    }
+  },
   build: {
     outDir: 'dist',
     emptyOutDir: true,
     lib: {
-      entry: 'src/index.tsx',
+      entry: path.resolve(__dirname, 'src/index.tsx'),
       name: 'MyPoetryApp',
       fileName: 'my-poetry-app',
       formats: ['iife']
@@ -18,8 +25,12 @@ export default defineConfig({
         globals: {
           react: 'React',
           'react-dom': 'ReactDOM'
-        }
+        },
+        footer: 'window.MyPoetryApp = { mount: default };'
       }
     }
+  },
+  define: {
+    'process.env': process.env
   }
 })
