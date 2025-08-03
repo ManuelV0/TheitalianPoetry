@@ -1,11 +1,11 @@
 [build]
-  command = "npm run build && echo 'BUILD_HASH=$(git rev-parse --short HEAD)' > dist/version.txt"
+  command = "npm run build && echo 'BUILD_SHA=$(git rev-parse --short HEAD)' > dist/build-info.txt"
 
 [[headers]]
   for = "/my-poetry-app*.js"
   [headers.values]
-    # Security
-    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline' https://widget.theitalianpoetryproject.com; style-src 'self' 'unsafe-inline'"
+    # Sicurezza
+    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:"
     X-Content-Type-Options = "nosniff"
     X-Frame-Options = "DENY"
     
@@ -14,9 +14,14 @@
     Vary = "Origin, Accept-Encoding"
     
     # Cache
-    Cache-Control = "no-cache, max-age=0, must-revalidate"
-    Netlify-CDN-Cache-Control = "public, max-age=0, stale-while-revalidate=300"
+    Cache-Control = "public, max-age=600, stale-while-revalidate=300"
+    Netlify-CDN-Cache-Control = "public, max-age=3600, stale-while-revalidate=600"
     
     # Debug
-    Server-Timing = "cdn;dur=150, edge;dur=50"
-    X-Widget-Version = "2.1.${BUILD_HASH}"
+    X-Widget-Version = "2.1.${BUILD_SHA}"
+    X-SourceMap = "/my-poetry-app.iife.js.map"
+
+[[headers]]
+  for = "/build-info.txt"
+  [headers.values]
+    Cache-Control = "no-store"
