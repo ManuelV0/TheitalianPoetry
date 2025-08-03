@@ -1,9 +1,17 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { supabase } from './lib/supabaseClient';
 
-// COMPONENTE BOX POESIA
+// --- COMPONENTE BOX POESIA ---
 function PoesiaBox({ poesia }: { poesia: any }) {
   const [aperta, setAperta] = useState(false);
+
+  // Gestione robusta: parsing se serve (caso arrivasse come stringa)
+  let analisiL = poesia.analisi_letteraria;
+  let analisiP = poesia.analisi_psicologica;
+  try {
+    if (typeof analisiL === 'string') analisiL = JSON.parse(analisiL);
+    if (typeof analisiP === 'string') analisiP = JSON.parse(analisiP);
+  } catch {}
 
   return (
     <div
@@ -40,11 +48,44 @@ function PoesiaBox({ poesia }: { poesia: any }) {
           <div className="grid md:grid-cols-2 gap-4">
             <section className="bg-green-50 border border-green-200 rounded-lg p-4">
               <h4 className="font-semibold text-green-800 mb-1">Analisi Letteraria</h4>
-              <p className="text-gray-700">{poesia.analisi_letteraria || <i>Nessuna analisi disponibile</i>}</p>
+              {analisiL ? (
+                <div>
+                  {analisiL.stile_letterario && (
+                    <p><b>Stile:</b> {analisiL.stile_letterario}</p>
+                  )}
+                  {analisiL.temi && (
+                    <p><b>Temi:</b> {Array.isArray(analisiL.temi)
+                      ? analisiL.temi.join(", ")
+                      : analisiL.temi}
+                    </p>
+                  )}
+                  {analisiL.struttura && (
+                    <p><b>Struttura:</b> {analisiL.struttura}</p>
+                  )}
+                  {analisiL.riferimenti_culturali && (
+                    <p><b>Riferimenti:</b> {analisiL.riferimenti_culturali}</p>
+                  )}
+                </div>
+              ) : <i className="text-green-400">Nessuna analisi disponibile</i>}
             </section>
             <section className="bg-indigo-50 border border-indigo-200 rounded-lg p-4">
               <h4 className="font-semibold text-indigo-800 mb-1">Analisi Psicologica</h4>
-              <p className="text-gray-700">{poesia.analisi_psicologica || <i>Nessuna analisi disponibile</i>}</p>
+              {analisiP ? (
+                <div>
+                  {analisiP.emozioni && (
+                    <p><b>Emozioni:</b> {Array.isArray(analisiP.emozioni)
+                      ? analisiP.emozioni.join(", ")
+                      : analisiP.emozioni}
+                    </p>
+                  )}
+                  {analisiP.stato_interno && (
+                    <p><b>Stato interno:</b> {analisiP.stato_interno}</p>
+                  )}
+                  {analisiP.visione_del_mondo && (
+                    <p><b>Visione:</b> {analisiP.visione_del_mondo}</p>
+                  )}
+                </div>
+              ) : <i className="text-indigo-400">Nessuna analisi disponibile</i>}
             </section>
           </div>
         </div>
@@ -53,7 +94,7 @@ function PoesiaBox({ poesia }: { poesia: any }) {
   );
 }
 
-// COMPONENTE PRINCIPALE
+// --- COMPONENTE PRINCIPALE ---
 export default function App() {
   const [state, setState] = useState({
     poesie: [] as any[],
@@ -94,8 +135,8 @@ export default function App() {
   };
   const poesieFiltrate = state.poesie.filter(p =>
     (p.title?.toLowerCase().includes(state.search.toLowerCase()) ||
-    p.author_name?.toLowerCase().includes(state.search.toLowerCase()) ||
-    p.content?.toLowerCase().includes(state.search.toLowerCase()))
+      p.author_name?.toLowerCase().includes(state.search.toLowerCase()) ||
+      p.content?.toLowerCase().includes(state.search.toLowerCase()))
   );
 
   // RENDER
