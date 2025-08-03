@@ -10,17 +10,20 @@
     "forceConsistentCasingInFileNames": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": ["src/*"],
+      "@components/*": ["src/components/*"]
     },
-    "types": ["vite/client"],
+    "types": ["vite/client", "node"],
     "outDir": "./dist-types"
   },
   "include": [
     "src/**/*",
-    "vite.config.ts"
+    "vite.config.ts",
+    "global.d.ts"
   ],
   "exclude": [
     "node_modules",
-    "dist"
+    "dist",
+    "**/*.test.ts"
   ]
 }
