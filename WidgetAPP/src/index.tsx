@@ -1,49 +1,53 @@
-import * as React from 'react'
-import * as ReactDOM from 'react-dom/client'
-import App from './App'
+import * as React from 'react';
+import * as ReactDOM from 'react-dom/client';
+import App from './App';
 
 const mount = (el: HTMLElement) => {
-  const root = ReactDOM.createRoot(el)
+  const root = ReactDOM.createRoot(el);
   root.render(
     <React.StrictMode>
       <App />
     </React.StrictMode>
-  )
-  return () => root.unmount()
-}
+  );
+  return () => root.unmount();
+};
 
-// Solo per sviluppo locale
-if (process.env.NODE_ENV === 'development') {
-  const devRoot = document.getElementById('root')
-  if (devRoot) {
-    mount(devRoot)
-  }
-}
-
-// Esposizione globale per produzione
+// Tipo globale TypeScript
 declare global {
   interface Window {
     MyPoetryApp: {
-      mount: typeof mount
-    }
+      mount: typeof mount;
+    };
   }
 }
 
-// Iniezione esplicita nell'oggetto window
-const initGlobal = () => {
-  window.MyPoetryApp = { mount }
-  console.log('[Widget] Inizializzato:', window.MyPoetryApp)
-}
+// Inizializzazione widget
+const initWidget = () => {
+  // Modalità sviluppo
+  if (import.meta.env.DEV) {
+    const devRoot = document.getElementById('root');
+    if (devRoot) {
+      mount(devRoot);
+      console.log('[DEV] Widget montato in sviluppo');
+    }
+  }
 
-// Verifica contesto browser (evita errori SSR)
+  // Esposizione globale
+  window.MyPoetryApp = { mount };
+  console.log('[PROD] Widget esposto come globale:', window.MyPoetryApp);
+};
+
+// Verifica ambiente browser
 if (typeof window !== 'undefined') {
-  initGlobal()
+  initWidget();
 }
 
-// Cleanup per hot-reloading
+// Supporto HMR per Vite
 if (import.meta.hot) {
+  import.meta.hot.accept();
   import.meta.hot.dispose(() => {
-    const roots = document.querySelectorAll('#root')
-    roots.forEach(el => el?.unmount?.())
-  })
+    document.querySelectorAll('#root').forEach(el => {
+      el?.unmount?.();
+    });
+  });
 }
