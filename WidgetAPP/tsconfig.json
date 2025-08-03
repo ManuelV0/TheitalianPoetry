@@ -5,25 +5,14 @@
     "jsx": "react-jsx",
     "moduleResolution": "node",
     "strict": true,
-    "baseUrl": ".",
-    "paths": {
-      "@/*": ["src/*"],
-      "@components/*": ["src/components/*"]
-    },
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-    "outDir": "./dist-types",
     "types": ["vite/client"]
   },
-  "include": [
-    "src/**/*",
-    "netlify/functions/**/*",
-    "vite.config.ts"
-  ],
-  "exclude": [
-    "node_modules",
-    "dist",
+  "include": ["src/**/*"],
+  "exclude": ["node_modules"]
+}
     "**/*.test.ts"
   ]
 }
