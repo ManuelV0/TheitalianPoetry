@@ -1,16 +1,27 @@
 [build]
-  base = "/"
-  command = "npm install && npm run build"
+  command = "npm run build"
   publish = "dist"
+  functions = "netlify/functions"
 
 [build.environment]
   NODE_VERSION = "18"
   NPM_VERSION = "10"
-
-[context.production.environment]
   VITE_APP_MODE = "production"
+
+[context.deploy-preview.environment]
+  VITE_APP_MODE = "staging"
+
+[context.branch-deploy.environment]
+  VITE_APP_MODE = "development"
 
 [[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
