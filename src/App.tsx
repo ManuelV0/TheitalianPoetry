@@ -1,100 +1,150 @@
+import React, { useEffect, useState, useCallback } from 'react';
+import { supabase } from './lib/supabaseClient';
 
-import React, { useEffect, useState } from 'react'
-import { supabase } from './lib/supabaseClient'
-
-// LOG all'importazione del modulo
-console.log(">> [App.tsx] File importato");
+// Debug iniziale
+console.groupCollapsed(">> [App.tsx] Inizializzazione");
+console.log("Ambiente:", process.env.NODE_ENV);
+console.log("Supabase inizializzato:", !!supabase);
+console.groupEnd();
 
 function PoesiaBox({ poesia }: { poesia: any }) {
-  const [aperta, setAperta] = useState(false)
+  const [aperta, setAperta] = useState(false);
 
-  // LOG al montaggio del componente PoesiaBox
   useEffect(() => {
-    console.log(">> [PoesiaBox] Montato. ID poesia:", poesia?.id);
-  }, [poesia?.id]);
+    console.debug(`[PoesiaBox ${poesia.id}] Montato`, { 
+      titolo: poesia.title,
+      autore: poesia.author_name 
+    });
+    
+    return () => {
+      console.debug(`[PoesiaBox ${poesia.id}] Smontato`);
+    };
+  }, [poesia]);
+
+  const toggleAperta = () => {
+    console.debug(`[PoesiaBox ${poesia.id}] Click - Stato: ${!aperta}`);
+    setAperta(!aperta);
+  };
 
   return (
-    <div className="w-full border rounded-lg p-6 shadow-lg mb-6 bg-white transition-all hover:shadow-xl font-sans">
-      {/* ...resto invariato */}
-      {/* Puoi aggiungere altri log qui se vuoi vedere click/apertura */}
+    <div 
+      className={`poesia-box ${aperta ? 'aperta' : ''}`}
+      onClick={toggleAperta}
+      data-testid={`poesia-${poesia.id}`}
+    >
+      <h3>{poesia.title}</h3>
+      <p className="autore">{poesia.author_name}</p>
+      {aperta && (
+        <div className="contenuto">
+          <pre>{poesia.content}</pre>
+          <div className="analisi">
+            <h4>Analisi Letteraria</h4>
+            <p>{poesia.analisi_letteraria}</p>
+            <h4>Analisi Psicologica</h4>
+            <p>{poesia.analisi_psicologica}</p>
+          </div>
+        </div>
+      )}
     </div>
-  )
+  );
 }
 
 export default function App() {
-  const [poesie, setPoesie] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
-  const [search, setSearch] = useState('')
+  const [state, setState] = useState({
+    poesie: [] as any[],
+    loading: true,
+    error: null as string | null,
+    search: ''
+  });
 
-  // LOG: quando viene montato App
-  useEffect(() => {
-    console.log(">> [App] COMPONENT montato");
+  const fetchPoesie = useCallback(async () => {
+    console.group("[App] fetchPoesie()");
+    try {
+      setState(prev => ({ ...prev, loading: true }));
+      
+      const { data, error } = await supabase
+        .from('poesie')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(50);
+
+      if (error) throw error;
+
+      console.debug("Poesie caricate:", data.length);
+      setState(prev => ({ ...prev, poesie: data, loading: false }));
+    } catch (err) {
+      console.error("Errore fetch:", err);
+      setState(prev => ({
+        ...prev,
+        error: 'Errore nel caricamento',
+        loading: false
+      }));
+    } finally {
+      console.groupEnd();
+    }
   }, []);
 
-  const fetchPoesie = async () => {
-    console.log(">> [App] fetchPoesie() chiamata");
-    const { data, error } = await supabase
-      .from('poesie')
-      .select('id, title, content, author_name, analisi_letteraria, analisi_psicologica, created_at')
-      .order('created_at', { ascending: false })
-
-    if (!error) {
-      console.log(">> [App] poesie caricate:", data?.length);
-      setPoesie(data || [])
-    } else {
-      console.error(">> [App] ERRORE caricamento poesie:", error);
-    }
-    setLoading(false)
-  }
-
   useEffect(() => {
-    fetchPoesie()
+    console.log("[App] Effetto montaggio");
+    fetchPoesie();
 
-    const interval = setInterval(() => {
-      fetchPoesie()
-    }, 10000)
+    const interval = setInterval(fetchPoesie, 300000); // 5 minuti
 
-    return () => clearInterval(interval)
-  }, [])
+    return () => {
+      console.log("[App] Smontaggio - cleanup");
+      clearInterval(interval);
+    };
+  }, [fetchPoesie]);
 
-  const poesieFiltrate = poesie.filter(p =>
-    p.title?.toLowerCase().includes(search.toLowerCase()) ||
-    p.author_name?.toLowerCase().includes(search.toLowerCase()) ||
-    p.content?.toLowerCase().includes(search.toLowerCase())
-  )
+  const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    console.debug(`Ricerca: "${value}"`);
+    setState(prev => ({ ...prev, search: value }));
+  };
+
+  const poesieFiltrate = state.poesie.filter(p =>
+    Object.values(p).some(
+      val => val?.toString().toLowerCase().includes(state.search.toLowerCase())
+    )
+  );
+
+  console.debug("[App] Render", {
+    poesieTotali: state.poesie.length,
+    poesieFiltrate: poesieFiltrate.length,
+    searchTerm: state.search
+  });
 
   return (
-    <main className="max-w-lg sm:max-w-3xl mx-auto p-6 bg-gray-50 min-h-screen font-open-sans">
-      <h1 className="text-3xl font-extrabold mb-6 text-center text-green-700 tracking-wide font-montserrat">
-        TheItalianPoetryProject.com
-      </h1>
-
-      <div className="mb-8">
+    <div className="app-container">
+      <header>
+        <h1>The Italian Poetry Project</h1>
         <input
           type="search"
-          value={search}
-          onChange={e => {
-            console.log(">> [App] Ricerca cambiata:", e.target.value);
-            setSearch(e.target.value)
-          }}
-          placeholder="Cerca per titolo, autore o testo..."
-          className="w-full p-4 rounded-lg border border-gray-300 focus:outline-none focus:ring-4 focus:ring-green-500 focus:border-transparent text-gray-700 text-lg"
-          aria-label="Barra di ricerca poesie"
-          autoComplete="off"
+          value={state.search}
+          onChange={handleSearch}
+          placeholder="Cerca poesie..."
+          aria-label="Cerca poesie"
         />
-      </div>
+      </header>
 
-      {loading && <p className="text-center text-gray-500">Caricamento poesie...</p>}
-
-      {poesieFiltrate.length > 0 ? (
-        poesieFiltrate.map(poesia => (
-          <PoesiaBox key={poesia.id} poesia={poesia} />
-        ))
-      ) : (
-        !loading && (
-          <p className="text-center text-gray-400 mt-12 text-lg">Nessuna poesia trovata.</p>
-        )
+      {state.error && (
+        <div className="error-banner" role="alert">
+          {state.error}
+          <button onClick={fetchPoesie}>Riprova</button>
+        </div>
       )}
-    </main>
-  )
+
+      <div className="poesie-list">
+        {state.loading ? (
+          <div className="loader">Caricamento...</div>
+        ) : poesieFiltrate.length > 0 ? (
+          poesieFiltrate.map(poesia => (
+            <PoesiaBox key={poesia.id} poesia={poesia} />
+          ))
+        ) : (
+          <div className="empty-state">Nessun risultato</div>
+        )}
+      </div>
+    </div>
+  );
 }
