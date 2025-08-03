@@ -1,28 +1,22 @@
-
 [build]
-  command = "npm install && npm run build"
-  publish = "dist"
-  environment = { NODE_VERSION = "18" }
-
-
+  command = "npm run build && echo 'BUILD_HASH=$(git rev-parse --short HEAD)' > dist/version.txt"
 
 [[headers]]
   for = "/my-poetry-app*.js"
   [headers.values]
-    # CORS Essentials
+    # Security
+    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline' https://widget.theitalianpoetryproject.com; style-src 'self' 'unsafe-inline'"
+    X-Content-Type-Options = "nosniff"
+    X-Frame-Options = "DENY"
+    
+    # CORS
     Access-Control-Allow-Origin = "*"
     Vary = "Origin, Accept-Encoding"
     
-    # Cache Control
+    # Cache
     Cache-Control = "no-cache, max-age=0, must-revalidate"
-    Netlify-CDN-Cache-Control = "public, max-age=0, stale-while-revalidate=0"
-    
-    # Security
-    Cross-Origin-Embedder-Policy = "unsafe-none"
-    Cross-Origin-Opener-Policy = "same-origin-allow-popups"
-    X-Content-Type-Options = "nosniff"
-    X-Frame-Options = "ALLOW-FROM https://theitalianpoetryproject.com"
+    Netlify-CDN-Cache-Control = "public, max-age=0, stale-while-revalidate=300"
     
     # Debug
-    X-Widget-Version = "2.1.0"
-    Last-Modified = "$(date -u +'%a, %d %b %Y %H:%M:%S GMT')"
+    Server-Timing = "cdn;dur=150, edge;dur=50"
+    X-Widget-Version = "2.1.${BUILD_HASH}"
