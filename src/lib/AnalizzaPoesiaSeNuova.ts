@@ -1,5 +1,3 @@
-import { supabase } from './supabaseClient';
-import { fetchOpenAIChatCompletion } from './openai';
 
 /**
  * Analizza una poesia con GPT solo se non già presente nel database.
