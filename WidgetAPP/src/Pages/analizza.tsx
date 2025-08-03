@@ -27,7 +27,7 @@ export default function AnalizzaPoesie() {
     setLoadingId(poesia.id);
     setOutput(null);
 
-    const risultato = await analizzaPoesiaSeNuova(poesia.content, poesia.author_name, poesia.id);
+    const risultato = await analizzaNuova(poesia.content, poesia.author_name, poesia.id);
     setOutput({ ...risultato, title: poesia.title });
     setLoadingId(null);
   };
