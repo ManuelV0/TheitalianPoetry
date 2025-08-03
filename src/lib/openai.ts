@@ -9,7 +9,7 @@ export async function fetchOpenAIChatCompletion(messages: any[]) {
       "Authorization": `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
-      model: "gpt-4o",      // o il modello che preferisci
+      model: "gpt-4o",    // Usa qui il modello che preferisci
       messages,
       temperature: 0.8,
     }),
