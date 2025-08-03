@@ -1,20 +1,26 @@
-// vite.config.js
-export default {
+export default defineConfig({
   build: {
     lib: {
-      formats: ['iife'], // Solo IIFE
-      name: 'MyPoetryApp', // Case-sensitive
       entry: 'src/index.tsx',
-      fileName: 'my-poetry-app' // Nome fisso
+      name: 'MyPoetryApp',
+      fileName: 'my-poetry-app',
+      formats: ['iife']
     },
     rollupOptions: {
-      external: ['react', 'react-dom'], // Supabase incluso
+      external: ['react', 'react-dom'],
       output: {
         globals: {
           react: 'React',
           'react-dom': 'ReactDOM'
-        }
+        },
++       // Aggiungi questa sezione CRUCIALE
++       intro: 'const global = window;',
++       footer: () => `
++         if (typeof window !== 'undefined') {
++           window.MyPoetryApp = { mount: X };
++         }
++       `
       }
     }
   }
-}
+})
