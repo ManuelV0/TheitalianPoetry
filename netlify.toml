@@ -3,26 +3,32 @@
 [build]
   command = "npm run build && echo 'BUILD_SHA=$(git rev-parse HEAD)' > dist/version.txt"
 
+[build]
+  command = "npm run build && echo 'BUILD_ID=$(git rev-parse --short HEAD)-$(date +%s)' > dist/build.txt"
+
 [[headers]]
   for = "/my-poetry-app*.js"
   [headers.values]
     # Sicurezza
-    Content-Security-Policy = "default-src 'self' https:; script-src 'self' 'unsafe-inline' https://widget.theitalianpoetryproject.com"
-    Referrer-Policy = "strict-origin-when-cross-origin"
-    
-    # Performance
-    Cache-Control = "public, max-age=600, stale-while-revalidate=300"
-    Netlify-CDN-Cache-Control = "public, max-age=3600, stale-while-revalidate=600"
-    
-    # Debug
-    Server-Timing = "cdn;desc=\"Netlify CDN\""
-    X-Widget-Build = "$(date +%Y%m%d)"
-    X-SourceMap = "/my-poetry-app.iife.js.map"
+    Content-Security-Policy = """
+      default-src 'none';
+      script-src 'self' 'unsafe-inline' https://widget.theitalianpoetryproject.com;
+      connect-src https://api.theitalianpoetryproject.com;
+      style-src 'self' 'unsafe-inline';
+      img-src 'self' data: https://*.cdn.theitalianpoetryproject.com;
+      """
+    Permissions-Policy = "geolocation=(), camera=(), microphone=()"
+    Cross-Origin-Embedder-Policy = "require-corp"
+    Reporting-Endpoint = "/_csp-reports"
 
-[[headers]]
-  for = "/version.txt"
-  [headers.values]
-    Cache-Control = "no-store"
-    
+    # Performance
+    Cache-Control = "public, max-age=604800, immutable"
+    Netlify-CDN-Cache-Control = "public, max-age=31536000, immutable"
+
+    # Debug
+    SourceMap = "/my-poetry-app.iife.js.map"
+    X-Widget-Version = "v2.1.${git describe --tags}"
+
+
 [dev]
   autoLaunch = true
