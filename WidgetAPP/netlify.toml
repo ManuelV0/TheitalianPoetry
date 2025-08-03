@@ -9,14 +9,15 @@
   VITE_APP_MODE = "production"
   CI = "true"
 
-[context.deploy-preview.environment]
-  VITE_APP_MODE = "staging"
+[context.production.environment]
+  VITE_APP_MODE = "production"
 
 [[headers]]
   for = "/*"
   [headers.values]
     X-Frame-Options = "DENY"
-    Content-Security-Policy = "default-src 'self'"
+    Content-Security-Policy = "default-src 'self' https:; script-src 'self' 'unsafe-inline'"
+    X-Content-Type-Options = "nosniff"
 
 [[redirects]]
   from = "/*"
