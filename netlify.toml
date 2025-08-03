@@ -1,25 +1,14 @@
+
 [build]
-  command = "npm run build && echo 'BUILD_SHA=$(git rev-parse --short HEAD)' > dist/build-info.txt"
+  command = "npm run build"
+  publish = "dist"
 
 [[headers]]
   for = "/my-poetry-app*.js"
   [headers.values]
-    # Sicurezza
-    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:"
-    X-Content-Type-Options = "nosniff"
-    X-Frame-Options = "DENY"
-    
-    # CORS
     Access-Control-Allow-Origin = "*"
-    Vary = "Origin, Accept-Encoding"
-    
-    # Cache
-    Cache-Control = "public, max-age=600, stale-while-revalidate=300"
-    Netlify-CDN-Cache-Control = "public, max-age=3600, stale-while-revalidate=600"
-    
-    # Debug
-    X-Widget-Version = "2.1.${BUILD_SHA}"
-    X-SourceMap = "/my-poetry-app.iife.js.map"
+    Content-Type = "application/javascript"
+    Cache-Control = "public, max-age=3600"
 
 [[headers]]
   for = "/build-info.txt"
