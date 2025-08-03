@@ -3,24 +3,59 @@ import ReactDOM from "react-dom/client";
 import App from "./App";
 import "./index.css";
 
-// Log all'inizio dell'entrypoint
-console.log(">> WidgetApp ENTRYPOINT loaded");
-
-// Funzione che monta il widget su un elemento DOM passato
-function mount(element: HTMLElement) {
-  console.log(">> MyPoetryApp.mount CHIAMATA con", element);
-  ReactDOM.createRoot(element).render(
-    <React.StrictMode>
-      <App />
-    </React.StrictMode>
-  );
+// Polyfill per process
+if (typeof window !== "undefined" && !window.process) {
+  (window as any).process = {
+    env: { NODE_ENV: 'production' },
+    cwd: () => '/',
+    version: ''
+  };
 }
 
-// Esposizione globale: window.MyPoetryApp.mount
+console.log(">> [INIT] WidgetApp ENTRYPOINT loaded");
+
+// Funzione di mount
+function mount(el: HTMLElement, config?: any) {
+  console.log(">> [MOUNT] Chiamato con elemento:", el);
+  
+  try {
+    const root = ReactDOM.createRoot(el);
+    root.render(
+      <React.StrictMode>
+        <App {...config} />
+      </React.StrictMode>
+    );
+    
+    // Salva riferimento per unmount
+    (el as any)._widgetRoot = root;
+    console.log(">> [MOUNT] Completato con successo");
+  } catch (error) {
+    console.error(">> [MOUNT ERROR]", error);
+    throw error;
+  }
+}
+
+// Funzione di unmount
+function unmount(el: HTMLElement) {
+  console.log(">> [UNMOUNT] Chiamato per elemento:", el);
+  
+  if (el?._widgetRoot) {
+    el._widgetRoot.unmount();
+    delete el._widgetRoot;
+    console.log(">> [UNMOUNT] Completato");
+  } else {
+    console.warn(">> [UNMOUNT] Nessun root trovato");
+  }
+}
+
+// Esposizione globale
 if (typeof window !== "undefined") {
-  console.log(">> Sto esponendo MyPoetryApp su window...");
-  (window as any).MyPoetryApp = { mount };
-  console.log(">> MyPoetryApp globale:", window.MyPoetryApp);
+  console.log(">> [EXPOSE] Registrazione globale...");
+  (window as any).MyPoetryApp = { mount, unmount };
+  console.log(">> [EXPOSE] MyPoetryApp registrato:", {
+    mount: typeof mount,
+    unmount: typeof unmount
+  });
 }
 
-export { mount }; // Utile per eventuali test o import interni
+export { mount, unmount };
