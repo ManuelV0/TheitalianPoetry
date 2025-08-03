@@ -8,7 +8,7 @@ export default defineConfig({
     lib: {
       entry: 'src/index.tsx',
       name: 'MyPoetryApp',
-      fileName: (format) => `my-poetry-app.${format}.js`,
+      fileName: (format) => `My-poetry-app.${format}.js`,
       formats: ['iife'] // self-executing bundle per uso diretto via <script>
     },
     rollupOptions: {
