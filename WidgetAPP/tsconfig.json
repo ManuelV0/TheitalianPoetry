@@ -3,11 +3,24 @@
     "target": "ESNext",
     "module": "ESNext",
     "jsx": "react-jsx",
-    "moduleResolution": "Node",
+    "moduleResolution": "node",
     "strict": true,
     "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"],
+      "lib/*": ["src/lib/*"]
+    },
     "esModuleInterop": true,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "types": ["vite/client", "@types/node"]
   },
-  "include": ["src", "netlify/functions"]
+  "include": [
+    "src/**/*",
+    "netlify/functions/**/*",
+    "vite.config.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist"
+  ]
 }
