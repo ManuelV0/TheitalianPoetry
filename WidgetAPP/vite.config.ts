@@ -1,9 +1,13 @@
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
-import path from 'path'
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+import path from 'path';
 
 export default defineConfig({
   plugins: [react()],
+  define: {
+    'process.env': process.env,
+    '__DEV__': JSON.stringify(import.meta.env.DEV)
+  },
   build: {
     outDir: 'dist',
     emptyOutDir: true,
@@ -29,4 +33,4 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src')
     }
   }
-})
+});
