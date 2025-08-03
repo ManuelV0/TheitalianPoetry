@@ -13,10 +13,12 @@ if (process.env.NODE_ENV === 'development') {
   if (devRoot) mount(devRoot)
 }
 
-// Questa riga è cruciale:
+// Questa riga è cruciale!
 if (typeof window !== 'undefined') {
   // @ts-ignore
   window.MyPoetryApp = { mount }
+  console.log("Widget caricato, window.MyPoetryApp:", window.MyPoetryApp)
 }
 
-export { mount }
+// NON esportare nulla qui sotto!
+// export { mount }  // <-- TOGLI questa riga
