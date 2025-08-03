@@ -1,28 +1,25 @@
 [build]
-  command = "npm run build && echo 'Build timestamp: $(date)' > dist/build.txt"
   publish = "dist"
+  functions = "netlify/functions"
+  command = "npm run build"
 
 [[headers]]
-  for = "/my-poetry-app*.js"
+  for = "/*.js"
   [headers.values]
-    # CORS
+    # CORS Essentials
     Access-Control-Allow-Origin = "*"
     Vary = "Origin, Accept-Encoding"
     
-    # Cache
+    # Cache Control
     Cache-Control = "no-cache, max-age=0, must-revalidate"
     Netlify-CDN-Cache-Control = "public, max-age=0, stale-while-revalidate=0"
     
-    # Security
+    # Embedding Policies (opzionali, puoi toglierle se non ti servono)
     Cross-Origin-Embedder-Policy = "unsafe-none"
     Cross-Origin-Opener-Policy = "same-origin-allow-popups"
-    X-Content-Type-Options = "nosniff"
     
     # Debug
     Timing-Allow-Origin = "*"
-    X-Debug-Build = "2024-07-16"
 
-[[headers]]
-  for = "/build.txt"
-  [headers.values]
-    Cache-Control = "no-store"
+[dev]
+  autoLaunch = true
