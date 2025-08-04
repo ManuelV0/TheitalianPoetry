@@ -4,6 +4,8 @@ import { supabase } from './lib/supabaseClient';
 // --- COMPONENTE BOX POESIA ---
 function PoesiaBox({ poesia }: { poesia: any }) {
   const [aperta, setAperta] = useState(false);
+  const [audioUrl, setAudioUrl] = useState<string | null>(poesia.audio_url || null);
+  const [loadingAudio, setLoadingAudio] = useState(false);
 
   // Gestione robusta: parsing se serve (caso arrivasse come stringa)
   let analisiL = poesia.analisi_letteraria;
@@ -12,6 +14,37 @@ function PoesiaBox({ poesia }: { poesia: any }) {
     if (typeof analisiL === 'string') analisiL = JSON.parse(analisiL);
     if (typeof analisiP === 'string') analisiP = JSON.parse(analisiP);
   } catch {}
+
+  // === AGGIUNTA: Generazione audio ===
+  const handleGeneraAudio = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setLoadingAudio(true);
+    try {
+      if (audioUrl) {
+        setLoadingAudio(false);
+        return;
+      }
+      const res = await fetch('/.netlify/functions/genera-audio', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: poesia.content, poesia_id: poesia.id })
+      });
+      const json = await res.json();
+      if (json.audio_url) {
+        setAudioUrl(json.audio_url);
+        // (UX istantanea, aggiorna anche la tabella se vuoi)
+        await supabase
+          .from('poesie')
+          .update({ audio_url: json.audio_url, audio_generated: true })
+          .eq('id', poesia.id);
+      } else if (json.audioUrl) {
+        setAudioUrl(json.audioUrl);
+      }
+    } catch (err) {
+      alert('Errore nella generazione audio.');
+    }
+    setLoadingAudio(false);
+  };
 
   return (
     <div
@@ -45,6 +78,25 @@ function PoesiaBox({ poesia }: { poesia: any }) {
       {aperta && (
         <div className="contenuto">
           <pre>{poesia.content}</pre>
+
+          {/* --- PLAYER AUDIO o BOTTONE --- */}
+          <div style={{ margin: '16px 0' }}>
+            {audioUrl ? (
+              <audio controls style={{ width: '100%' }}>
+                <source src={audioUrl} type="audio/mpeg" />
+                Il tuo browser non supporta l'audio.
+              </audio>
+            ) : (
+              <button
+                className="audio-btn"
+                onClick={handleGeneraAudio}
+                disabled={loadingAudio}
+              >
+                {loadingAudio ? "Generazione in corso..." : "🎙️ Genera voce AI"}
+              </button>
+            )}
+          </div>
+
           <div className="analisi-wrapper">
             <section className="analisi letteraria">
               <h4>Analisi Letteraria</h4>
@@ -109,7 +161,7 @@ export default function App() {
     try {
       const { data, error } = await supabase
         .from('poesie')
-        .select('*')
+        .select('id, title, content, author_name, analisi_letteraria, analisi_psicologica, audio_url, created_at')
         .order('created_at', { ascending: false })
         .limit(50);
       if (error) throw error;
