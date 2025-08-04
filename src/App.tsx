@@ -20,6 +20,7 @@ function PoesiaBox({ poesia }: { poesia: any }) {
     e.stopPropagation();
     setLoadingAudio(true);
     try {
+      // NON rigenerare se già presente
       if (audioUrl) {
         setLoadingAudio(false);
         return;
@@ -27,12 +28,15 @@ function PoesiaBox({ poesia }: { poesia: any }) {
       const res = await fetch('/.netlify/functions/genera-audio', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: poesia.content, poesia_id: poesia.id })
+        body: JSON.stringify({
+          text: poesia.content,
+          poesia_id: poesia.id
+        })
       });
       const json = await res.json();
       if (json.audio_url) {
         setAudioUrl(json.audio_url);
-        // UX: aggiorna anche la tabella se vuoi
+        // Aggiorna anche in Supabase (UX istantanea)
         await supabase
           .from('poesie')
           .update({ audio_url: json.audio_url, audio_generated: true })
@@ -85,9 +89,9 @@ function PoesiaBox({ poesia }: { poesia: any }) {
               <>
                 <audio
                   controls
-                  style={{ width: '100%', minHeight: 32, background: '#eee' }}
+                  style={{ width: '100%' }}
                   src={audioUrl}
-                  key={audioUrl} // forza reload su cambio
+                  key={audioUrl}
                   preload="none"
                   onPlay={() => console.log('Play:', audioUrl)}
                   onError={e => {
@@ -97,6 +101,7 @@ function PoesiaBox({ poesia }: { poesia: any }) {
                 >
                   Il tuo browser non supporta l'audio.
                 </audio>
+                {/* DEBUG: link e url */}
                 <a
                   href={audioUrl}
                   target="_blank"
