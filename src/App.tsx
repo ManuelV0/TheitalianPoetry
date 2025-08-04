@@ -83,10 +83,9 @@ function PoesiaBox({ poesia }: { poesia: any }) {
           <div style={{ margin: '16px 0' }}>
             {audioUrl ? (
               <>
-                {/* Mostra il player solo se c'è audioUrl */}
                 <audio
                   controls
-                  style={{ width: '100%' }}
+                  style={{ width: '100%', minHeight: 32, background: '#eee' }}
                   src={audioUrl}
                   key={audioUrl} // forza reload su cambio
                   preload="none"
@@ -98,8 +97,17 @@ function PoesiaBox({ poesia }: { poesia: any }) {
                 >
                   Il tuo browser non supporta l'audio.
                 </audio>
-                {/* Per debug, puoi stampare temporaneamente: */}
-                {/* <pre>{audioUrl}</pre> */}
+                <a
+                  href={audioUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ fontSize: 12, color: '#0077cc', display: 'block', marginTop: 6 }}
+                >
+                  Apri audio in nuova scheda
+                </a>
+                <pre style={{ wordBreak: 'break-all', fontSize: 11, color: '#999' }}>
+                  {audioUrl}
+                </pre>
               </>
             ) : (
               <button
