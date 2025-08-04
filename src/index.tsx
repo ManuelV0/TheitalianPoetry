@@ -3,63 +3,79 @@ import ReactDOM from "react-dom/client";
 import App from "./App";
 import "./index.css";
 
-// Polyfill avanzato per process
-if (typeof window !== "undefined") {
-  if (!window.process) {
-    (window as any).process = {
-      env: { 
-        NODE_ENV: 'production',
-        PUBLIC_URL: window.location.origin 
-      },
-      cwd: () => '/',
-      version: '18.0.0',
-      nextTick: (callback) => setTimeout(callback, 0)
+// Extended TypeScript interfaces
+declare global {
+  interface Window {
+    process?: {
+      env: Record<string, string>;
+      cwd: () => string;
+      version: string;
+      nextTick: (callback: () => void) => void;
     };
-    console.log(">> [POLYFILL] process configurato");
+    MyPoetryApp?: {
+      mount: (el: HTMLElement, config?: any) => void;
+      unmount: (el: HTMLElement) => void;
+    };
   }
 
-  // Verifica ambiente
-  console.groupCollapsed(">> [ENV CHECK]");
-  console.log("React:", window.React?.version);
-  console.log("ReactDOM:", window.ReactDOM?.version);
-  console.log("Process:", window.process?.env?.NODE_ENV);
-  console.groupEnd();
+  interface HTMLElement {
+    _widgetRoot?: ReactDOM.Root;
+  }
 }
 
-// Funzione di mount potenziata
-function mount(el: HTMLElement, config = {}) {
-  console.group(">> [MOUNT]");
+// Enhanced process polyfill
+if (typeof window !== "undefined" && !window.process) {
+  window.process = {
+    env: {
+      NODE_ENV: process.env.NODE_ENV || 'production',
+      PUBLIC_URL: window.location.origin
+    },
+    cwd: () => '/',
+    version: process.version || '18.0.0',
+    nextTick: (callback) => setTimeout(callback, 0)
+  };
+  console.debug("[POLYFILL] process configured");
+}
+
+// Environment verification
+const verifyEnvironment = () => {
+  console.groupCollapsed("[ENV CHECK]");
+  console.log("React version:", React.version);
+  console.log("Process.env.NODE_ENV:", window.process?.env?.NODE_ENV);
+  console.groupEnd();
+};
+
+verifyEnvironment();
+
+// Enhanced mount function
+const mount = (el: HTMLElement, config: Record<string, unknown> = {}): void => {
+  console.group("[MOUNT]");
   try {
-    if (!el) {
-      throw new Error("Elemento DOM non fornito");
+    if (!el || !(el instanceof HTMLElement)) {
+      throw new Error("Invalid DOM element provided");
     }
 
-    console.log("Elemento ricevuto:", el);
-    console.log("Configurazione:", config);
+    console.debug("Mounting to:", el);
+    console.debug("Configuration:", config);
 
-    // Test visivo preliminare
-    el.innerHTML = '<div style="color:red;padding:1rem;">TEST VISUALE</div>';
+    // Visual test
+    el.innerHTML = '<div style="color:red;padding:1rem;">LOADING WIDGET...</div>';
 
-    // Delay per debug
-    setTimeout(() => {
-      const root = ReactDOM.createRoot(el);
-      root.render(
-        <React.StrictMode>
-          <App {...config} />
-        </React.StrictMode>
-      );
-      
-      // Salva riferimento
-      (el as any)._widgetRoot = root;
-      console.log("Render completato");
-    }, 500);
+    const root = ReactDOM.createRoot(el);
+    root.render(
+      <React.StrictMode>
+        <App {...config} />
+      </React.StrictMode>
+    );
 
+    el._widgetRoot = root;
+    console.debug("Render completed");
   } catch (error) {
-    console.error("Errore durante il mount:", error);
+    console.error("Mount error:", error);
     if (el) {
       el.innerHTML = `
         <div style="color:white;background:red;padding:1rem;">
-          ERRORE: ${error.message}
+          ERROR: ${error instanceof Error ? error.message : String(error)}
         </div>
       `;
     }
@@ -67,46 +83,45 @@ function mount(el: HTMLElement, config = {}) {
   } finally {
     console.groupEnd();
   }
-}
+};
 
-// Funzione di unmount robusta
-function unmount(el: HTMLElement) {
-  console.group(">> [UNMOUNT]");
+// Robust unmount function
+const unmount = (el: HTMLElement): void => {
+  console.group("[UNMOUNT]");
   try {
     if (!el?._widgetRoot) {
-      console.warn("Nessuna istanza React trovata");
+      console.warn("No React instance found");
       return;
     }
 
     el._widgetRoot.unmount();
     delete el._widgetRoot;
-    el.innerHTML = '<div style="color:gray">Widget smontato</div>';
-    console.log("Smontaggio completato");
-
+    el.innerHTML = '<div style="color:gray">Widget unmounted</div>';
+    console.debug("Unmount completed");
   } catch (error) {
-    console.error("Errore durante l'unmount:", error);
+    console.error("Unmount error:", error);
   } finally {
     console.groupEnd();
   }
-}
+};
 
-// Esposizione globale con validazione
+// Expose API with validation
 if (typeof window !== "undefined") {
-  const exposedAPI = { 
+  const exposedAPI = {
     mount: (el: HTMLElement, config?: any) => {
-      console.log("[API CALL] mount triggered");
+      console.debug("[API] mount called");
       return mount(el, config);
     },
     unmount: (el: HTMLElement) => {
-      console.log("[API CALL] unmount triggered");
+      console.debug("[API] unmount called");
       return unmount(el);
     }
   };
 
-  (window as any).MyPoetryApp = exposedAPI;
-  console.log(">> [EXPORT] API esposta:", {
-    mount: exposedAPI.mount.length + " args",
-    unmount: exposedAPI.unmount.length + " args"
+  window.MyPoetryApp = exposedAPI;
+  console.debug("[EXPORT] API exposed", {
+    methods: Object.keys(exposedAPI),
+    version: process.env.REACT_APP_VERSION || '1.0.0'
   });
 }
 
