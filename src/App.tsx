@@ -144,14 +144,27 @@ export default function App() {
     <div className="poetry-widget-app">
       <header>
         <h1>The Italian Poetry Project</h1>
-        <div className="search-bar">
+        <div className="poetry-search-bar">
           <input
             type="search"
             value={state.search}
             onChange={handleSearch}
-            placeholder="Cerca poesie, autori o testo..."
+            placeholder="Cerca tra le poesie, autori o testo…"
             aria-label="Cerca poesie"
+            autoFocus
+            autoComplete="off"
           />
+          {state.search && (
+            <button
+              className="search-clear-btn"
+              aria-label="Pulisci ricerca"
+              onClick={() => setState(prev => ({ ...prev, search: "" }))}
+              tabIndex={0}
+              type="button"
+            >
+              &times;
+            </button>
+          )}
         </div>
       </header>
 
