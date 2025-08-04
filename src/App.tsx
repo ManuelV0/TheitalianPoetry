@@ -1,39 +1,41 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { supabase } from './lib/supabaseClient';
 
-// --- DETECT SAFARI/iOS (versione migliorata) ---
+// --- IMPROVED SAFARI/iOS DETECTION ---
 function isIOSorSafari() {
   if (typeof navigator === "undefined") return false;
   return /iP(ad|hone|od)/.test(navigator.userAgent) ||
     (/Safari/i.test(navigator.userAgent) && !/Chrome/i.test(navigator.userAgent));
 }
 
-// --- COMPONENTE BOX POESIA ---
-function PoesiaBox({ poesia }: { poesia: any }) {
+// --- POETRY BOX COMPONENT ---
+const PoesiaBox = ({ poesia }: { poesia: any }) => {
   const [aperta, setAperta] = useState(false);
   const [audioUrl, setAudioUrl] = useState<string | null>(poesia.audio_url || null);
   const [audioBlobUrl, setAudioBlobUrl] = useState<string | null>(null);
   const [loadingAudio, setLoadingAudio] = useState(false);
   const [audioError, setAudioError] = useState<string | null>(null);
 
-  // Parsing robusto delle analisi
-  let analisiL = poesia.analisi_letteraria;
-  let analisiP = poesia.analisi_psicologica;
-  try {
-    if (typeof analisiL === 'string') analisiL = JSON.parse(analisiL);
-    if (typeof analisiP === 'string') analisiP = JSON.parse(analisiP);
-  } catch {}
+  // Robust analysis parsing
+  const parseAnalysis = (analysis: any) => {
+    try {
+      return typeof analysis === 'string' ? JSON.parse(analysis) : analysis;
+    } catch {
+      return null;
+    }
+  };
 
-  // --- HANDLER PER GENERARE AUDIO ---
+  const analisiL = parseAnalysis(poesia.analisi_letteraria);
+  const analisiP = parseAnalysis(poesia.analisi_psicologica);
+
+  // --- AUDIO GENERATION HANDLER ---
   const handleGeneraAudio = async (e: React.MouseEvent) => {
     e.stopPropagation();
     setLoadingAudio(true);
     setAudioError(null);
     try {
-      if (audioUrl) {
-        setLoadingAudio(false);
-        return;
-      }
+      if (audioUrl) return;
+      
       const res = await fetch('/.netlify/functions/genera-audio', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -42,93 +44,83 @@ function PoesiaBox({ poesia }: { poesia: any }) {
           poesia_id: poesia.id
         })
       });
+      
       const json = await res.json();
-      if (json.audio_url) {
-        setAudioUrl(json.audio_url);
+      const newAudioUrl = json.audio_url || json.audioUrl;
+      if (newAudioUrl) {
+        setAudioUrl(newAudioUrl);
         await supabase
           .from('poesie')
-          .update({ audio_url: json.audio_url, audio_generated: true })
+          .update({ audio_url: newAudioUrl, audio_generated: true })
           .eq('id', poesia.id);
-      } else if (json.audioUrl) {
-        setAudioUrl(json.audioUrl);
       }
     } catch (err) {
       setAudioError('Errore nella generazione audio');
+    } finally {
+      setLoadingAudio(false);
     }
-    setLoadingAudio(false);
   };
 
-  // --- FETCH BLOB AUDIO (versione migliorata per iOS) ---
+  // --- BLOB FETCH FOR iOS ---
   const fetchAudioAsBlob = useCallback(async (url: string) => {
     setLoadingAudio(true);
     setAudioError(null);
     try {
-      // Forza il download con cache-busting
-      const res = await fetch(`${url}?${Date.now()}`, {
-        cache: 'no-cache',
+      const res = await fetch(`${url}?ts=${Date.now()}`, {
+        cache: 'no-store',
         mode: 'cors'
       });
       
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      if (!res.headers.get('content-type')?.includes('audio/mpeg')) {
-        throw new Error('Invalid MIME type');
+      
+      const contentType = res.headers.get('content-type');
+      if (!contentType?.includes('audio/')) {
+        throw new Error(`Invalid MIME type: ${contentType}`);
       }
 
       const blob = await res.blob();
-      const objectUrl = URL.createObjectURL(blob);
-      setAudioBlobUrl(objectUrl);
+      setAudioBlobUrl(URL.createObjectURL(blob));
     } catch (err) {
-      console.error('iOS Audio Fetch Error:', err);
-      setAudioError('Errore nel caricamento audio per iOS');
+      console.error('Audio fetch error:', err);
+      setAudioError('Errore nel caricamento audio');
+    } finally {
+      setLoadingAudio(false);
     }
-    setLoadingAudio(false);
   }, []);
 
-  // --- EFFETTO: gestione audio per iOS ---
+  // --- iOS AUDIO MANAGEMENT ---
   useEffect(() => {
-    let blobUrl: string | null = null;
-    let objectUrl: string | null = null;
+    if (!aperta || !audioUrl || !isIOSorSafari() || audioBlobUrl) return;
 
-    const setupAudio = async () => {
-      if (aperta && audioUrl && isIOSorSafari() && !audioBlobUrl) {
-        await fetchAudioAsBlob(audioUrl);
-      }
-    };
-
-    setupAudio();
+    const controller = new AbortController();
+    fetchAudioAsBlob(audioUrl);
 
     return () => {
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
+      controller.abort();
+      if (audioBlobUrl) URL.revokeObjectURL(audioBlobUrl);
     };
   }, [aperta, audioUrl, audioBlobUrl, fetchAudioAsBlob]);
 
-  // --- HANDLER PLAY FORZATO PER iOS ---
+  // --- FORCED PLAY FOR iOS ---
   const handlePlayForced = async (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!audioUrl) return;
 
     try {
-      // Se iOS e non abbiamo ancora il blob
       if (isIOSorSafari() && !audioBlobUrl) {
         await fetchAudioAsBlob(audioUrl);
       }
 
-      // Forza la riproduzione dopo un gesto utente
-      const audioElement = document.createElement('audio');
-      audioElement.src = audioBlobUrl || audioUrl;
-      audioElement.playsInline = true;
-      audioElement.preload = 'none';
-      
-      document.body.appendChild(audioElement);
-      await audioElement.play();
-      audioElement.remove();
+      const audio = new Audio(audioBlobUrl || audioUrl);
+      audio.preload = 'none';
+      audio.playsInline = true;
+      await audio.play();
     } catch (err) {
-      console.error('Forced play failed:', err);
-      setAudioError('Riproduzione fallita. Tocca di nuovo per riprovare.');
+      console.error('Playback failed:', err);
+      setAudioError('Riproduzione fallita. Tocca di nuovo.');
     }
   };
 
-  // --- RENDER ---
   return (
     <div
       className={`poesia-box${aperta ? ' aperta' : ''}`}
@@ -153,103 +145,185 @@ function PoesiaBox({ poesia }: { poesia: any }) {
         </button>
       </div>
       
-      {!aperta && (
+      {!aperta ? (
         <p className="preview">{poesia.content?.slice(0, 120)}...</p>
-      )}
-
-      {aperta && (
+      ) : (
         <div className="contenuto">
           <pre>{poesia.content}</pre>
 
-          {/* --- SEZIONE AUDIO MIGLIORATA --- */}
-          <div style={{ margin: '16px 0' }}>
+          {/* AUDIO SECTION */}
+          <div className="audio-section">
             {audioUrl ? (
               <>
-                <div className="audio-player-wrapper">
+                <div className="audio-player-container">
                   <audio
                     controls
-                    style={{ width: '100%' }}
                     src={isIOSorSafari() && audioBlobUrl ? audioBlobUrl : audioUrl}
                     key={`${audioUrl}-${audioBlobUrl ? 'blob' : 'direct'}`}
                     preload="none"
                     playsInline
                     onPlay={(e) => {
-                      // Backup per iOS
                       if (isIOSorSafari() && e.target.paused) {
-                        e.target.play().catch(err => {
-                          console.error('Auto-play failed:', err);
-                          setAudioError('Tocca il pulsante play per avviare');
-                        });
+                        e.target.play().catch(console.error);
                       }
                     }}
                     onError={(e) => {
-                      const error = e.target.error;
-                      console.error("Audio Error:", {
-                        code: error?.code,
-                        message: error?.message,
-                        src: e.target.src
-                      });
-                      setAudioError('Errore nel player. Usa il link alternativo.');
+                      console.error("Audio error:", e.target.error);
+                      setAudioError("Errore di riproduzione");
                     }}
-                  >
-                    Il tuo browser non supporta l'elemento audio.
-                  </audio>
-
-                  {/* Bottone alternativo per iOS */}
+                  />
+                  
                   {isIOSorSafari() && (
-                    <button
+                    <button 
                       onClick={handlePlayForced}
-                      style={{
-                        marginTop: '8px',
-                        padding: '6px 12px',
-                        fontSize: '14px',
-                        backgroundColor: '#f0f0f0',
-                        border: '1px solid #ddd'
-                      }}
+                      className="ios-play-button"
+                      disabled={loadingAudio}
                     >
-                      {loadingAudio ? 'Caricamento...' : 'Riproduci Forzato'}
+                      {loadingAudio ? 'Caricamento...' : 'Riproduci'}
                     </button>
                   )}
                 </div>
 
-                <div className="audio-meta">
+                <div className="audio-links">
                   <a
                     href={audioUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    style={{ fontSize: 12, color: '#0077cc', display: 'block', marginTop: 6 }}
-                    onClick={(e) => e.stopPropagation()}
+                    className="audio-download-link"
                   >
-                    Apri audio in nuova scheda
+                    Scarica audio
                   </a>
-                  
                   {audioError && (
-                    <div style={{ color: '#d32f2f', fontSize: 12, marginTop: 4 }}>
-                      {audioError}
-                    </div>
-                  )}
-
-                  {process.env.NODE_ENV === 'development' && (
-                    <pre style={{ wordBreak: 'break-all', fontSize: 11, color: '#999' }}>
-                      {isIOSorSafari() ? 'BLOB:' : 'DIRECT:'} {audioBlobUrl || audioUrl}
-                    </pre>
+                    <div className="audio-error">{audioError}</div>
                   )}
                 </div>
               </>
             ) : (
               <button
-                className="audio-btn"
+                className="generate-audio-btn"
                 onClick={handleGeneraAudio}
                 disabled={loadingAudio}
               >
-                {loadingAudio ? "Generazione in corso..." : "🎙️ Genera voce AI"}
+                {loadingAudio ? "Generazione..." : "🎙️ Genera audio"}
               </button>
             )}
           </div>
 
-          {/* ... (resto del codice analisi) ... */}
+          {/* ANALYSIS SECTIONS */}
+          <div className="analisi-container">
+            <section className="analisi-section">
+              <h4>Analisi Letteraria</h4>
+              {analisiL ? (
+                <div>
+                  {analisiL.stile_letterario && <p><b>Stile:</b> {analisiL.stile_letterario}</p>}
+                  {analisiL.temi && <p><b>Temi:</b> {Array.isArray(analisiL.temi) ? analisiL.temi.join(", ") : analisiL.temi}</p>}
+                  {analisiL.struttura && <p><b>Struttura:</b> {analisiL.struttura}</p>}
+                  {analisiL.riferimenti_culturali && <p><b>Riferimenti:</b> {analisiL.riferimenti_culturali}</p>}
+                </div>
+              ) : <i>Nessuna analisi disponibile</i>}
+            </section>
+
+            <section className="analisi-section">
+              <h4>Analisi Psicologica</h4>
+              {analisiP ? (
+                <div>
+                  {analisiP.emozioni && <p><b>Emozioni:</b> {Array.isArray(analisiP.emozioni) ? analisiP.emozioni.join(", ") : analisiP.emozioni}</p>}
+                  {analisiP.stato_interno && <p><b>Stato interno:</b> {analisiP.stato_interno}</p>}
+                  {analisiP.visione_del_mondo && <p><b>Visione:</b> {analisiP.visione_del_mondo}</p>}
+                </div>
+              ) : <i>Nessuna analisi disponibile</i>}
+            </section>
+          </div>
         </div>
       )}
     </div>
   );
-}
+};
+
+// --- MAIN APP COMPONENT ---
+const App = () => {
+  const [state, setState] = useState({
+    poesie: [] as any[],
+    loading: true,
+    error: null as string | null,
+    search: ''
+  });
+
+  const fetchPoesie = useCallback(async () => {
+    setState(prev => ({ ...prev, loading: true, error: null }));
+    try {
+      const { data, error } = await supabase
+        .from('poesie')
+        .select('id, title, content, author_name, analisi_letteraria, analisi_psicologica, audio_url, created_at')
+        .order('created_at', { ascending: false })
+        .limit(50);
+      
+      if (error) throw error;
+      setState(prev => ({ ...prev, poesie: data || [], loading: false }));
+    } catch (err) {
+      setState(prev => ({ ...prev, error: 'Errore nel caricamento', loading: false }));
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchPoesie();
+    const interval = setInterval(fetchPoesie, 300000);
+    return () => clearInterval(interval);
+  }, [fetchPoesie]);
+
+  const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setState(prev => ({ ...prev, search: e.target.value }));
+  };
+
+  const poesieFiltrate = state.poesie.filter(p =>
+    p.title?.toLowerCase().includes(state.search.toLowerCase()) ||
+    p.author_name?.toLowerCase().includes(state.search.toLowerCase()) ||
+    p.content?.toLowerCase().includes(state.search.toLowerCase())
+  );
+
+  return (
+    <div className="app-container">
+      <header className="app-header">
+        <div className="search-bar">
+          <input
+            type="search"
+            value={state.search}
+            onChange={handleSearch}
+            placeholder="Cerca poesie..."
+            aria-label="Cerca poesie"
+          />
+          {state.search && (
+            <button
+              className="clear-search"
+              onClick={() => setState(prev => ({ ...prev, search: "" }))}
+              aria-label="Pulisci ricerca"
+            >
+              ×
+            </button>
+          )}
+        </div>
+      </header>
+
+      {state.error && (
+        <div className="error-message">
+          {state.error}
+          <button onClick={fetchPoesie}>Riprova</button>
+        </div>
+      )}
+
+      <main className="poesie-list">
+        {state.loading ? (
+          <div className="loader">Caricamento...</div>
+        ) : poesieFiltrate.length > 0 ? (
+          poesieFiltrate.map(poesia => (
+            <PoesiaBox key={poesia.id} poesia={poesia} />
+          ))
+        ) : (
+          <div className="empty-state">Nessuna poesia trovata</div>
+        )}
+      </main>
+    </div>
+  );
+};
+
+export default App;
