@@ -15,20 +15,20 @@ function PoesiaBox({ poesia }: { poesia: any }) {
 
   return (
     <div
-      className={`poesia-box group transition-all bg-white rounded-xl shadow hover:shadow-xl border border-gray-100 p-6 mb-6 cursor-pointer ${aperta ? 'ring-2 ring-green-300' : ''}`}
+      className={`poesia-box${aperta ? ' aperta' : ''}`}
       tabIndex={0}
       onClick={() => setAperta(v => !v)}
       onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && setAperta(v => !v)}
       aria-expanded={aperta}
       role="button"
     >
-      <div className="flex items-start gap-3">
-        <div className="flex-1">
-          <h3 className="text-2xl font-bold text-green-700 mb-1">{poesia.title}</h3>
-          <p className="italic text-gray-500 mb-2">{poesia.author_name || "Anonimo"}</p>
+      <div className="poesia-box-header">
+        <div className="poesia-info">
+          <h3>{poesia.title}</h3>
+          <p className="autore">{poesia.author_name || "Anonimo"}</p>
         </div>
         <button
-          className="ml-2 text-sm text-white bg-green-600 hover:bg-green-700 rounded-full px-4 py-1 font-semibold transition shadow"
+          className="expand-btn"
           style={{ userSelect: 'none' }}
           tabIndex={-1}
           onClick={e => { e.stopPropagation(); setAperta(a => !a); }}
@@ -39,15 +39,15 @@ function PoesiaBox({ poesia }: { poesia: any }) {
       </div>
       {/* Preview testo */}
       {!aperta && (
-        <p className="mt-3 text-gray-700 line-clamp-2">{poesia.content?.slice(0, 120)}...</p>
+        <p className="preview">{poesia.content?.slice(0, 120)}...</p>
       )}
       {/* Dettagli */}
       {aperta && (
-        <div className="mt-4 animate-fade-in-down">
-          <pre className="mb-3 whitespace-pre-line text-lg font-medium text-gray-900">{poesia.content}</pre>
-          <div className="grid md:grid-cols-2 gap-4">
-            <section className="bg-green-50 border border-green-200 rounded-lg p-4">
-              <h4 className="font-semibold text-green-800 mb-1">Analisi Letteraria</h4>
+        <div className="contenuto">
+          <pre>{poesia.content}</pre>
+          <div className="analisi-wrapper">
+            <section className="analisi letteraria">
+              <h4>Analisi Letteraria</h4>
               {analisiL ? (
                 <div>
                   {analisiL.stile_letterario && (
@@ -66,10 +66,10 @@ function PoesiaBox({ poesia }: { poesia: any }) {
                     <p><b>Riferimenti:</b> {analisiL.riferimenti_culturali}</p>
                   )}
                 </div>
-              ) : <i className="text-green-400">Nessuna analisi disponibile</i>}
+              ) : <i>Nessuna analisi disponibile</i>}
             </section>
-            <section className="bg-indigo-50 border border-indigo-200 rounded-lg p-4">
-              <h4 className="font-semibold text-indigo-800 mb-1">Analisi Psicologica</h4>
+            <section className="analisi psicologica">
+              <h4>Analisi Psicologica</h4>
               {analisiP ? (
                 <div>
                   {analisiP.emozioni && (
@@ -85,7 +85,7 @@ function PoesiaBox({ poesia }: { poesia: any }) {
                     <p><b>Visione:</b> {analisiP.visione_del_mondo}</p>
                   )}
                 </div>
-              ) : <i className="text-indigo-400">Nessuna analisi disponibile</i>}
+              ) : <i>Nessuna analisi disponibile</i>}
             </section>
           </div>
         </div>
@@ -141,30 +141,25 @@ export default function App() {
 
   // RENDER
   return (
-    <div className="poetry-widget-app w-full max-w-3xl mx-auto p-6 bg-gray-50 rounded-xl shadow">
-      <header className="mb-6">
-        <h1 className="text-3xl md:text-4xl text-center font-extrabold text-green-700 font-montserrat mb-6">
-          The Italian Poetry Project
-        </h1>
-        <div className="flex justify-center">
+    <div className="poetry-widget-app">
+      <header>
+        <h1>The Italian Poetry Project</h1>
+        <div className="search-bar">
           <input
             type="search"
             value={state.search}
             onChange={handleSearch}
             placeholder="Cerca poesie, autori o testo..."
             aria-label="Cerca poesie"
-            className="w-full max-w-xl p-4 rounded-full border border-gray-300 focus:ring-4 focus:ring-green-400 focus:outline-none shadow text-lg transition"
-            style={{ fontFamily: 'Open Sans, sans-serif' }}
           />
         </div>
       </header>
 
       {/* Banner errore */}
       {state.error && (
-        <div className="error-banner bg-red-100 text-red-700 p-4 rounded mb-4 flex items-center justify-between" role="alert">
+        <div className="error-banner" role="alert">
           <span>{state.error}</span>
           <button
-            className="bg-red-700 hover:bg-red-900 text-white rounded-full px-4 py-1 ml-3"
             onClick={fetchPoesie}
           >
             Riprova
@@ -174,13 +169,13 @@ export default function App() {
 
       <div className="poesie-list">
         {state.loading ? (
-          <div className="loader text-center text-gray-500 my-8">Caricamento poesie...</div>
+          <div className="loader">Caricamento poesie...</div>
         ) : poesieFiltrate.length > 0 ? (
           poesieFiltrate.map(poesia => (
             <PoesiaBox key={poesia.id} poesia={poesia} />
           ))
         ) : (
-          <div className="empty-state text-center text-gray-400 mt-12 text-lg">Nessuna poesia trovata.</div>
+          <div className="empty-state">Nessuna poesia trovata.</div>
         )}
       </div>
     </div>
