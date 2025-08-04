@@ -143,7 +143,6 @@ export default function App() {
   return (
     <div className="poetry-widget-app">
       <header>
-        <h1>The Italian Poetry Project</h1>
         <div className="poetry-search-bar">
           <input
             type="search"
