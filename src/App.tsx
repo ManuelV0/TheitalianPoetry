@@ -7,7 +7,7 @@ function PoesiaBox({ poesia }: { poesia: any }) {
   const [audioUrl, setAudioUrl] = useState<string | null>(poesia.audio_url || null);
   const [loadingAudio, setLoadingAudio] = useState(false);
 
-  // Gestione robusta: parsing se serve (caso arrivasse come stringa)
+  // Parsing robusto delle analisi (può arrivare come stringa)
   let analisiL = poesia.analisi_letteraria;
   let analisiP = poesia.analisi_psicologica;
   try {
@@ -15,7 +15,7 @@ function PoesiaBox({ poesia }: { poesia: any }) {
     if (typeof analisiP === 'string') analisiP = JSON.parse(analisiP);
   } catch {}
 
-  // === AGGIUNTA: Generazione audio ===
+  // --- HANDLER PER GENERARE AUDIO ---
   const handleGeneraAudio = async (e: React.MouseEvent) => {
     e.stopPropagation();
     setLoadingAudio(true);
@@ -32,7 +32,7 @@ function PoesiaBox({ poesia }: { poesia: any }) {
       const json = await res.json();
       if (json.audio_url) {
         setAudioUrl(json.audio_url);
-        // (UX istantanea, aggiorna anche la tabella se vuoi)
+        // UX: aggiorna anche la tabella se vuoi
         await supabase
           .from('poesie')
           .update({ audio_url: json.audio_url, audio_generated: true })
@@ -46,6 +46,7 @@ function PoesiaBox({ poesia }: { poesia: any }) {
     setLoadingAudio(false);
   };
 
+  // --- RENDER ---
   return (
     <div
       className={`poesia-box${aperta ? ' aperta' : ''}`}
@@ -78,14 +79,28 @@ function PoesiaBox({ poesia }: { poesia: any }) {
       {aperta && (
         <div className="contenuto">
           <pre>{poesia.content}</pre>
-
           {/* --- PLAYER AUDIO o BOTTONE --- */}
           <div style={{ margin: '16px 0' }}>
             {audioUrl ? (
-              <audio controls style={{ width: '100%' }}>
-                <source src={audioUrl} type="audio/mpeg" />
-                Il tuo browser non supporta l'audio.
-              </audio>
+              <>
+                {/* Mostra il player solo se c'è audioUrl */}
+                <audio
+                  controls
+                  style={{ width: '100%' }}
+                  src={audioUrl}
+                  key={audioUrl} // forza reload su cambio
+                  preload="none"
+                  onPlay={() => console.log('Play:', audioUrl)}
+                  onError={e => {
+                    alert('Errore caricamento audio');
+                    console.error('AUDIO PLAYER ERROR:', e);
+                  }}
+                >
+                  Il tuo browser non supporta l'audio.
+                </audio>
+                {/* Per debug, puoi stampare temporaneamente: */}
+                {/* <pre>{audioUrl}</pre> */}
+              </>
             ) : (
               <button
                 className="audio-btn"
@@ -96,7 +111,6 @@ function PoesiaBox({ poesia }: { poesia: any }) {
               </button>
             )}
           </div>
-
           <div className="analisi-wrapper">
             <section className="analisi letteraria">
               <h4>Analisi Letteraria</h4>
