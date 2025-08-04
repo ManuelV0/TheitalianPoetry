@@ -1,10 +1,18 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { supabase } from './lib/supabaseClient';
 
+// --- DETECT SAFARI/iOS (molto grezzo ma efficace) ---
+function isIOSorSafari() {
+  if (typeof navigator === "undefined") return false;
+  return /iP(ad|hone|od)/.test(navigator.userAgent)
+    || (navigator.userAgent.includes('Safari') && !navigator.userAgent.includes('Chrome'));
+}
+
 // --- COMPONENTE BOX POESIA ---
 function PoesiaBox({ poesia }: { poesia: any }) {
   const [aperta, setAperta] = useState(false);
   const [audioUrl, setAudioUrl] = useState<string | null>(poesia.audio_url || null);
+  const [audioBlobUrl, setAudioBlobUrl] = useState<string | null>(null);
   const [loadingAudio, setLoadingAudio] = useState(false);
 
   // Parsing robusto delle analisi (può arrivare come stringa)
@@ -36,7 +44,6 @@ function PoesiaBox({ poesia }: { poesia: any }) {
       const json = await res.json();
       if (json.audio_url) {
         setAudioUrl(json.audio_url);
-        // Aggiorna anche in Supabase (UX istantanea)
         await supabase
           .from('poesie')
           .update({ audio_url: json.audio_url, audio_generated: true })
@@ -49,6 +56,38 @@ function PoesiaBox({ poesia }: { poesia: any }) {
     }
     setLoadingAudio(false);
   };
+
+  // --- HANDLER PER FETCH BLOB AUDIO iOS/Safari ---
+  const fetchAudioAsBlob = useCallback(async (url: string) => {
+    setLoadingAudio(true);
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error("Errore fetch audio");
+      const blob = await res.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      setAudioBlobUrl(objectUrl);
+    } catch (err) {
+      alert('Errore nel caricamento audio (iOS/Safari)');
+    }
+    setLoadingAudio(false);
+  }, []);
+
+  // --- EFFETTO: se Safari/iOS e c'è audioUrl, fetcha il blob quando la poesia è aperta ---
+  useEffect(() => {
+    if (
+      aperta &&
+      audioUrl &&
+      isIOSorSafari() &&
+      !audioBlobUrl // Non rifetchare se già presente
+    ) {
+      fetchAudioAsBlob(audioUrl);
+    }
+    // Pulizia: revoke il blob se cambia
+    return () => {
+      if (audioBlobUrl) URL.revokeObjectURL(audioBlobUrl);
+    };
+    // eslint-disable-next-line
+  }, [aperta, audioUrl]);
 
   // --- RENDER ---
   return (
@@ -75,11 +114,9 @@ function PoesiaBox({ poesia }: { poesia: any }) {
           {aperta ? "Chiudi" : "Espandi"}
         </button>
       </div>
-      {/* Preview testo */}
       {!aperta && (
         <p className="preview">{poesia.content?.slice(0, 120)}...</p>
       )}
-      {/* Dettagli */}
       {aperta && (
         <div className="contenuto">
           <pre>{poesia.content}</pre>
@@ -90,8 +127,8 @@ function PoesiaBox({ poesia }: { poesia: any }) {
                 <audio
                   controls
                   style={{ width: '100%' }}
-                  src={audioUrl}
-                  key={audioUrl}
+                  src={isIOSorSafari() && audioBlobUrl ? audioBlobUrl : audioUrl}
+                  key={audioUrl + (audioBlobUrl || '')}
                   preload="none"
                   playsInline
                   onPlay={() => console.log('Play:', audioUrl)}
@@ -102,7 +139,6 @@ function PoesiaBox({ poesia }: { poesia: any }) {
                 >
                   Il tuo browser non supporta l'audio.
                 </audio>
-                {/* DEBUG: link e url */}
                 <a
                   href={audioUrl}
                   target="_blank"
