@@ -8,7 +8,8 @@
   },
   "dependencies": {
     "react": "^18.2.0",
-    "react-dom": "^18.2.0"
+    "react-dom": "^18.2.0",
+    "node-fetch": "^2.6.9"
   },
   "devDependencies": {
     "@supabase/supabase-js": "^2.39.5",
