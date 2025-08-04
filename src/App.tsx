@@ -93,6 +93,7 @@ function PoesiaBox({ poesia }: { poesia: any }) {
                   src={audioUrl}
                   key={audioUrl}
                   preload="none"
+                  playsInline
                   onPlay={() => console.log('Play:', audioUrl)}
                   onError={e => {
                     alert('Errore caricamento audio');
