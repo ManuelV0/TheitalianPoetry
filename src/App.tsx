@@ -9,7 +9,7 @@ function isIOSorSafari() {
     (/Safari/i.test(navigator.userAgent) && !/Chrome/i.test(navigator.userAgent));
 }
 
-const NETLIFY_AUDIO_FUNCTION = 'https://poetry.theitalianpoetryproject.com/.netlify/functions/genera-audio';
+const NETLIFY_AUDIO_FUNCTION = '/.netlify/functions/genera-audio';
 
 const AudioPlayerWithHighlight = ({ 
   content, 
