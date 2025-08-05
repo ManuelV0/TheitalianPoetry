@@ -1,5 +1,7 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { supabase } from './lib/supabaseClient';
+import { useNavigate } from 'react-router-dom'; // Se usi React Router
+import { FaArrowLeft, FaPlay, FaPause, FaStop, FaDownload } from 'react-icons/fa'; // Importa icone
 
 // --- IMPROVED SAFARI/iOS DETECTION ---
 function isIOSorSafari() {
@@ -23,12 +25,13 @@ const AudioPlayerWithHighlight = ({
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentWordIndex, setCurrentWordIndex] = useState(-1);
   const [progress, setProgress] = useState(0);
+  const [playbackRate, setPlaybackRate] = useState(1);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const words = content.split(/(\s+)/).filter(word => word.trim().length > 0);
   const wordRefs = useRef<(HTMLSpanElement | null)[]>([]);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Initialize audio and text tracking
+  // Inizializza l'audio e il tracciamento del testo
   useEffect(() => {
     const audio = new Audio(audioUrl);
     audio.preload = 'metadata';
@@ -45,7 +48,7 @@ const AudioPlayerWithHighlight = ({
       const wordIndex = Math.floor(newProgress * words.length);
       setCurrentWordIndex(Math.min(wordIndex, words.length - 1));
       
-      // Scroll to the current word with context
+      // Scroll alla parola corrente con contesto
       if (wordRefs.current[wordIndex]) {
         wordRefs.current[wordIndex]?.scrollIntoView({
           behavior: 'smooth',
@@ -94,12 +97,12 @@ const AudioPlayerWithHighlight = ({
     setIsPlaying(false);
     setCurrentWordIndex(-1);
     setProgress(0);
-    onClose();
   };
 
   const handleSpeedChange = (speed: number) => {
     if (audioRef.current) {
       audioRef.current.playbackRate = speed;
+      setPlaybackRate(speed);
     }
   };
 
@@ -107,10 +110,11 @@ const AudioPlayerWithHighlight = ({
     <div className="audio-player-modal" ref={containerRef}>
       <div className="audio-controls">
         <button onClick={togglePlayback} className="play-button">
-          {isPlaying ? '⏸ Pausa' : '▶️ Riproduci'}
+          {isPlaying ? <FaPause /> : <FaPlay />}
+          {isPlaying ? ' Pausa' : ' Riproduci'}
         </button>
         <button onClick={handleStop} className="stop-button">
-          ⏹ Stop
+          <FaStop /> Stop
         </button>
         
         <div className="speed-controls">
@@ -119,7 +123,7 @@ const AudioPlayerWithHighlight = ({
             <button 
               key={speed} 
               onClick={() => handleSpeedChange(speed)}
-              className={`speed-button ${audioRef.current?.playbackRate === speed ? 'active' : ''}`}
+              className={`speed-button ${playbackRate === speed ? 'active' : ''}`}
             >
               {speed}x
             </button>
@@ -132,6 +136,10 @@ const AudioPlayerWithHighlight = ({
             style={{ width: `${progress * 100}%` }}
           />
         </div>
+
+        <button onClick={onClose} className="back-button">
+          <FaArrowLeft /> Torna indietro
+        </button>
       </div>
       
       <div className="content-highlight">
@@ -151,16 +159,15 @@ const AudioPlayerWithHighlight = ({
   );
 };
 
-// --- POETRY BOX COMPONENT ---
-const PoesiaBox = ({ poesia }: { poesia: any }) => {
-  const [aperta, setAperta] = useState(false);
-  const [audioModalOpen, setAudioModalOpen] = useState(false);
-  const [audioUrl, setAudioUrl] = useState<string | null>(poesia.audio_url || null);
+// --- POETRY PAGE COMPONENT ---
+const PoetryPage = ({ poesia, onBack }: { poesia: any, onBack: () => void }) => {
+  const [audioUrl, setAudioUrl] = useState(poesia.audio_url || null);
   const [audioBlobUrl, setAudioBlobUrl] = useState<string | null>(null);
   const [loadingAudio, setLoadingAudio] = useState(false);
   const [audioError, setAudioError] = useState<string | null>(null);
+  const [showAudioPlayer, setShowAudioPlayer] = useState(false);
 
-  // Robust analysis parsing
+  // Parsing delle analisi
   const parseAnalysis = (analysis: any) => {
     try {
       return typeof analysis === 'string' ? JSON.parse(analysis) : analysis;
@@ -172,9 +179,8 @@ const PoesiaBox = ({ poesia }: { poesia: any }) => {
   const analisiL = parseAnalysis(poesia.analisi_letteraria);
   const analisiP = parseAnalysis(poesia.analisi_psicologica);
 
-  // Audio generation handler
-  const handleGeneraAudio = async (e: React.MouseEvent) => {
-    e.stopPropagation();
+  // Generazione audio
+  const handleGeneraAudio = async () => {
     setLoadingAudio(true);
     setAudioError(null);
     try {
@@ -205,7 +211,7 @@ const PoesiaBox = ({ poesia }: { poesia: any }) => {
     }
   };
 
-  // Fetch blob for iOS
+  // Fetch blob per iOS
   const fetchAudioAsBlob = useCallback(async (url: string) => {
     setLoadingAudio(true);
     setAudioError(null);
@@ -232,117 +238,97 @@ const PoesiaBox = ({ poesia }: { poesia: any }) => {
     }
   }, []);
 
-  // iOS audio management
+  // Gestione audio per iOS
   useEffect(() => {
-    if (!aperta || !audioUrl || !isIOSorSafari() || audioBlobUrl) return;
+    if (!audioUrl || !isIOSorSafari() || audioBlobUrl) return;
 
     fetchAudioAsBlob(audioUrl);
     
     return () => {
       if (audioBlobUrl) URL.revokeObjectURL(audioBlobUrl);
     };
-  }, [aperta, audioUrl, audioBlobUrl, fetchAudioAsBlob]);
+  }, [audioUrl, audioBlobUrl, fetchAudioAsBlob]);
 
   return (
-    <div
-      className={`poesia-box${aperta ? ' aperta' : ''}`}
-      tabIndex={0}
-      onClick={() => setAperta(v => !v)}
-      onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && setAperta(v => !v)}
-      aria-expanded={aperta}
-      role="button"
-    >
-      <div className="poesia-box-header">
-        <div className="poesia-info">
-          <h3>{poesia.title}</h3>
-          <p className="autore">{poesia.author_name || "Anonimo"}</p>
-        </div>
-        <button
-          className="expand-btn"
-          tabIndex={-1}
-          onClick={e => { e.stopPropagation(); setAperta(a => !a); }}
-          aria-label={aperta ? "Chiudi dettagli poesia" : "Espandi dettagli poesia"}
-        >
-          {aperta ? "Chiudi" : "Espandi"}
-        </button>
+    <div className="poetry-page">
+      <button onClick={onBack} className="back-button">
+        <FaArrowLeft /> Torna all'elenco
+      </button>
+
+      <div className="poetry-header">
+        <h1>{poesia.title}</h1>
+        <p className="author">{poesia.author_name || "Anonimo"}</p>
       </div>
-      
-      {!aperta ? (
-        <p className="preview">{poesia.content?.slice(0, 120)}...</p>
+
+      {showAudioPlayer && audioUrl ? (
+        <AudioPlayerWithHighlight 
+          content={poesia.content} 
+          audioUrl={isIOSorSafari() && audioBlobUrl ? audioBlobUrl : audioUrl}
+          onClose={() => setShowAudioPlayer(false)}
+          onError={setAudioError}
+        />
       ) : (
-        <div className="contenuto">
-          {audioModalOpen && audioUrl ? (
-            <AudioPlayerWithHighlight 
-              content={poesia.content} 
-              audioUrl={isIOSorSafari() && audioBlobUrl ? audioBlobUrl : audioUrl}
-              onClose={() => setAudioModalOpen(false)}
-              onError={setAudioError}
-            />
-          ) : (
-            <>
-              <pre>{poesia.content}</pre>
+        <div className="poetry-content">
+          <div className="poetry-text">
+            <pre>{poesia.content}</pre>
+          </div>
 
-              {/* AUDIO SECTION */}
-              <div className="audio-section">
-                {audioUrl ? (
-                  <div className="audio-options">
-                    <button 
-                      onClick={() => setAudioModalOpen(true)}
-                      className="listen-button"
-                    >
-                      🎧 Ascolta con highlight
-                    </button>
-                    <a
-                      href={audioUrl}
-                      download
-                      className="audio-download-link"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      ⬇️ Scarica audio
-                    </a>
-                  </div>
-                ) : (
-                  <button
-                    className="generate-audio-btn"
-                    onClick={handleGeneraAudio}
-                    disabled={loadingAudio}
-                  >
-                    {loadingAudio ? "Generazione in corso..." : "🎙️ Genera voce AI"}
-                  </button>
-                )}
-                
-                {audioError && (
-                  <div className="audio-error">{audioError}</div>
-                )}
+          <div className="audio-section">
+            {audioUrl ? (
+              <div className="audio-options">
+                <button 
+                  onClick={() => setShowAudioPlayer(true)}
+                  className="listen-button"
+                >
+                  <FaPlay /> Ascolta con highlight
+                </button>
+                <a
+                  href={audioUrl}
+                  download
+                  className="audio-download-link"
+                >
+                  <FaDownload /> Scarica audio
+                </a>
               </div>
+            ) : (
+              <button
+                className="generate-audio-btn"
+                onClick={handleGeneraAudio}
+                disabled={loadingAudio}
+              >
+                {loadingAudio ? "Generazione in corso..." : "🎙️ Genera voce AI"}
+              </button>
+            )}
+            
+            {audioError && (
+              <div className="audio-error">{audioError}</div>
+            )}
+          </div>
 
-              {/* ANALYSIS SECTIONS */}
-              <div className="analisi-container">
-                <section className="analisi-section">
-                  <h4>Analisi Letteraria</h4>
-                  {analisiL ? (
-                    <div>
-                      {analisiL.stile_letterario && <p><b>Stile:</b> {analisiL.stile_letterario}</p>}
-                      {analisiL.temi && <p><b>Temi:</b> {Array.isArray(analisiL.temi) ? analisiL.temi.join(", ") : analisiL.temi}</p>}
-                      {analisiL.struttura && <p><b>Struttura:</b> {analisiL.struttura}</p>}
-                      {analisiL.riferimenti_culturali && <p><b>Riferimenti:</b> {analisiL.riferimenti_culturali}</p>}
-                    </div>
-                  ) : <i>Nessuna analisi disponibile</i>}
-                </section>
+          <div className="analysis-sections">
+            <section className="analysis-section">
+              <h2>Analisi Letteraria</h2>
+              {analisiL ? (
+                <div>
+                  {analisiL.stile_letterario && <p><b>Stile:</b> {analisiL.stile_letterario}</p>}
+                  {analisiL.temi && <p><b>Temi:</b> {Array.isArray(analisiL.temi) ? analisiL.temi.join(", ") : analisiL.temi}</p>}
+                  {analisiL.struttura && <p><b>Struttura:</b> {analisiL.struttura}</p>}
+                  {analisiL.riferimenti_culturali && <p><b>Riferimenti:</b> {analisiL.riferimenti_culturali}</p>}
+                </div>
+              ) : <p className="no-analysis">Nessuna analisi disponibile</p>}
+            </section>
 
-                <section className="analisi-section">
-                  <h4>Analisi Psicologica</h4>
-                  {analisiP ? (
-                    <div>
-                      {analisiP.emozioni && <p><b>Emozioni:</b> {Array.isArray(analisiP.emozioni) ? analisiP.emozioni.join(", ") : analisiP.emozioni}</p>}
-                      {analisiP.stato_interno && <p><b>Stato interno:</b> {analisiP.stato_interno}</p>}
-                      {analisiP.visione_del_mondo && <p><b>Visione:</b> {analisiP.visione_del_mondo}</p>}
-                    </div>
-                  ) : <i>Nessuna analisi disponibile</i>}
-                </section>
-              </div>
-            </>
-          )}
+            <section className="analysis-section">
+              <h2>Analisi Psicologica</h2>
+              {analisiP ? (
+                <div>
+                  {analisiP.emozioni && <p><b>Emozioni:</b> {Array.isArray(analisiP.emozioni) ? analisiP.emozioni.join(", ") : analisiP.emozioni}</p>}
+                  {analisiP.stato_interno && <p><b>Stato interno:</b> {analisiP.stato_interno}</p>}
+                  {analisiP.visione_del_mondo && <p><b>Visione:</b> {analisiP.visione_del_mondo}</p>}
+                </div>
+              ) : <p className="no-analysis">Nessuna analisi disponibile</p>}
+            </section>
+          </div>
         </div>
       )}
     </div>
@@ -355,7 +341,8 @@ const App = () => {
     poesie: [] as any[],
     loading: true,
     error: null as string | null,
-    search: ''
+    search: '',
+    selectedPoesia: null as any | null
   });
 
   const fetchPoesie = useCallback(async () => {
@@ -384,6 +371,14 @@ const App = () => {
     setState(prev => ({ ...prev, search: e.target.value }));
   };
 
+  const handleSelectPoesia = (poesia: any) => {
+    setState(prev => ({ ...prev, selectedPoesia: poesia }));
+  };
+
+  const handleBackToList = () => {
+    setState(prev => ({ ...prev, selectedPoesia: null }));
+  };
+
   const poesieFiltrate = state.poesie.filter(p =>
     p.title?.toLowerCase().includes(state.search.toLowerCase()) ||
     p.author_name?.toLowerCase().includes(state.search.toLowerCase()) ||
@@ -392,45 +387,62 @@ const App = () => {
 
   return (
     <div className="app-container">
-      <header className="app-header">
-        <div className="search-bar">
-          <input
-            type="search"
-            value={state.search}
-            onChange={handleSearch}
-            placeholder="Cerca poesie..."
-            aria-label="Cerca poesie"
-          />
-          {state.search && (
-            <button
-              className="clear-search"
-              onClick={() => setState(prev => ({ ...prev, search: "" }))}
-              aria-label="Pulisci ricerca"
-            >
-              ×
-            </button>
+      {state.selectedPoesia ? (
+        <PoetryPage 
+          poesia={state.selectedPoesia} 
+          onBack={handleBackToList}
+        />
+      ) : (
+        <>
+          <header className="app-header">
+            <div className="search-bar">
+              <input
+                type="search"
+                value={state.search}
+                onChange={handleSearch}
+                placeholder="Cerca poesie..."
+                aria-label="Cerca poesie"
+              />
+              {state.search && (
+                <button
+                  className="clear-search"
+                  onClick={() => setState(prev => ({ ...prev, search: "" }))}
+                  aria-label="Pulisci ricerca"
+                >
+                  ×
+                </button>
+              )}
+            </div>
+          </header>
+
+          {state.error && (
+            <div className="error-message">
+              {state.error}
+              <button onClick={fetchPoesie}>Riprova</button>
+            </div>
           )}
-        </div>
-      </header>
 
-      {state.error && (
-        <div className="error-message">
-          {state.error}
-          <button onClick={fetchPoesie}>Riprova</button>
-        </div>
+          <main className="poesie-list">
+            {state.loading ? (
+              <div className="loader">Caricamento...</div>
+            ) : poesieFiltrate.length > 0 ? (
+              poesieFiltrate.map(poesia => (
+                <div 
+                  key={poesia.id} 
+                  className="poesia-card"
+                  onClick={() => handleSelectPoesia(poesia)}
+                >
+                  <h3>{poesia.title}</h3>
+                  <p className="author">{poesia.author_name || "Anonimo"}</p>
+                  <p className="preview">{poesia.content?.slice(0, 120)}...</p>
+                </div>
+              ))
+            ) : (
+              <div className="empty-state">Nessuna poesia trovata</div>
+            )}
+          </main>
+        </>
       )}
-
-      <main className="poesie-list">
-        {state.loading ? (
-          <div className="loader">Caricamento...</div>
-        ) : poesieFiltrate.length > 0 ? (
-          poesieFiltrate.map(poesia => (
-            <PoesiaBox key={poesia.id} poesia={poesia} />
-          ))
-        ) : (
-          <div className="empty-state">Nessuna poesia trovata</div>
-        )}
-      </main>
     </div>
   );
 };
