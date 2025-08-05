@@ -1,4 +1,4 @@
-// netlify/functions/genera-audio.js
+// netlify/functions/genera-audio.js.
 
 const { createClient } = require('@supabase/supabase-js');
 const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fetch(...args));
