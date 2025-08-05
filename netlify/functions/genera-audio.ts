@@ -1,4 +1,4 @@
-// netlify/functions/genera-audio.js.
+// netlify/functions/genera-audio.js
 
 const { createClient } = require('@supabase/supabase-js');
 const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fetch(...args));
@@ -15,7 +15,13 @@ const supabase = createClient(
 );
 
 exports.handler = async function(event, context) {
+  console.log('🟠 [genera-audio] Function CALLED!');
+  console.log('🟡 Method:', event.httpMethod);
+  console.log('🟡 Headers:', event.headers);
+  console.log('🟡 Body:', event.body);
+
   if (event.httpMethod !== 'POST') {
+    console.log('🔴 Solo POST ammesso!');
     return {
       statusCode: 405,
       headers: { 'Content-Type': 'application/json' },
@@ -23,14 +29,26 @@ exports.handler = async function(event, context) {
     };
   }
 
-  // Debug su variabili ambiente (log solo su errori)
   if (!SUPABASE_URL) console.error('❌ SUPABASE_URL mancante!');
   if (!SUPABASE_SERVICE_KEY) console.error('❌ SUPABASE_SERVICE_ROLE_KEY mancante!');
   if (!ELEVENLABS_API_KEY) console.error('❌ ELEVENLABS_API_KEY mancante!');
 
-  // Parsing del body JSON
-  const { text, poesia_id } = JSON.parse(event.body || '{}');
+  let text, poesia_id;
+  try {
+    ({ text, poesia_id } = JSON.parse(event.body || '{}'));
+    console.log('🟢 text:', text);
+    console.log('🟢 poesia_id:', poesia_id);
+  } catch (err) {
+    console.error('❌ Errore parsing body:', err);
+    return {
+      statusCode: 400,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ error: 'Body non valido' }),
+    };
+  }
+
   if (!text || !poesia_id) {
+    console.error('❌ Testo o ID poesia mancante!');
     return {
       statusCode: 400,
       headers: { 'Content-Type': 'application/json' },
@@ -39,6 +57,7 @@ exports.handler = async function(event, context) {
   }
 
   if (!ELEVENLABS_API_KEY || !SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
+    console.error('❌ Configurazione server incompleta (env missing)');
     return {
       statusCode: 500,
       headers: { 'Content-Type': 'application/json' },
@@ -48,6 +67,7 @@ exports.handler = async function(event, context) {
 
   try {
     // 1. Richiesta TTS a ElevenLabs
+    console.log('🟡 Invio richiesta TTS a ElevenLabs...');
     const ttsResponse = await fetch(
       `https://api.elevenlabs.io/v1/text-to-speech/${VOICE_ID}/stream`,
       {
@@ -76,13 +96,15 @@ exports.handler = async function(event, context) {
         body: JSON.stringify({ error: 'Errore dal servizio vocale', details: errorText }),
       };
     }
+    console.log('🟢 ElevenLabs risposta OK');
 
     const audioBuffer = Buffer.from(await ttsResponse.arrayBuffer());
+    console.log('🟢 Audio buffer generato, lunghezza:', audioBuffer.length);
 
     // 2. Carica su Supabase Storage
     const fileName = `poesia-${poesia_id}-${Date.now()}.mp3`;
+    console.log('🟡 Upload audio su Supabase:', fileName);
 
-    // Forza upsert
     const { error: uploadError } = await supabase
       .storage
       .from('poetry-audio')
@@ -106,6 +128,8 @@ exports.handler = async function(event, context) {
       .from('poetry-audio')
       .getPublicUrl(fileName);
 
+    console.log('🟢 Public URL generato:', publicUrl);
+
     if (urlError || !publicUrl) {
       console.error('❌ Errore publicUrl Supabase:', urlError?.message);
       return {
@@ -123,9 +147,12 @@ exports.handler = async function(event, context) {
 
     if (updateError) {
       console.error('❌ Errore update DB:', updateError.message);
-      // Proseguiamo comunque, perché l'audio è stato generato e caricato.
+    } else {
+      console.log('🟢 Aggiornamento DB avvenuto con successo');
     }
 
+    // Successo finale!
+    console.log('🟢 Funzione completata con successo!');
     return {
       statusCode: 200,
       headers: { 'Content-Type': 'application/json' },
@@ -137,7 +164,7 @@ exports.handler = async function(event, context) {
     return {
       statusCode: 500,
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ error: 'Errore interno del server' }),
+      body: JSON.stringify({ error: 'Errore interno del server', details: error.message }),
     };
   }
 };
