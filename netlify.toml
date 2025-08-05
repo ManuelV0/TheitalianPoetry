@@ -1,15 +1,24 @@
 
 [build]
-  command = "npm run build"
+  command = "npm install && npm run build"
   publish = "dist"
-  environment = { NODE_VERSION = "18" }
+  environment = { 
+    NODE_VERSION = "18",
+    VITE_SUPABASE_URL = "@vite_supabase_url",
+    VITE_SUPABASE_ANON_KEY = "@vite_supabase_anon_key",
+    VITE_OPENAI_KEY = "@vite_openai_key",
+    ELEVENLABS_API_KEY = "@elevenlabs_api_key",
+    SUPABASE_URL = "@supabase_url"
+  }
 
 [functions]
   directory = "netlify/functions"
-  node_bundler = "esbuild"  # Ottimizzazione bundle
+  node_bundler = "esbuild"
   included_files = [
     "netlify/functions/*.js",
-    "lib/supabaseClient.js"
+    "netlify/functions/*.ts",
+    "lib/supabaseClient.js",
+    "lib/audioUtils.js"
   ]
 
 [[headers]]
@@ -17,9 +26,15 @@
   [headers.values]
     Access-Control-Allow-Origin = "*"
     Content-Type = "application/javascript"
-    Cache-Control = "public, max-age=3600, immutable"
+    Cache-Control = "public, max-age=31536000, immutable"
     X-Frame-Options = "DENY"
     X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
 
 [[headers]]
   for = "/build-info.txt"
@@ -31,13 +46,21 @@
   for = "/.netlify/functions/*"
   [headers.values]
     Access-Control-Allow-Origin = "*"
-    Access-Control-Allow-Methods = "GET, POST, OPTIONS"
-    Access-Control-Allow-Headers = "Content-Type, Authorization"
+    Access-Control-Allow-Methods = "GET, POST, PUT, DELETE, OPTIONS"
+    Access-Control-Allow-Headers = "Content-Type, Authorization, X-Requested-With"
     Cache-Control = "no-store"
+    Content-Security-Policy = "default-src 'self'"
 
 [[redirects]]
   from = "/audio/*"
   to = "/.netlify/functions/genera-audio"
+  status = 200
+  force = true
+  headers = { Access-Control-Allow-Origin = "*" }
+
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/:splat"
   status = 200
   force = true
 
@@ -50,3 +73,10 @@
   framework = "#custom"
   targetPort = 3000
   autoLaunch = true
+  command = "vite dev --host"
+
+[context.production.environment]
+  NODE_ENV = "production"
+
+[context.deploy-preview.environment]
+  NODE_ENV = "staging"
