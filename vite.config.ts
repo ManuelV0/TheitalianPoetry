@@ -1,5 +1,4 @@
-
-  // vite.config.js
+// vite.config.js
 
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
@@ -19,25 +18,25 @@ export default defineConfig({
   },
   build: {
     lib: {
-      entry: path.resolve(__dirname, 'src/index.tsx'), // Cambia se il tuo entrypoint è diverso
+      entry: path.resolve(__dirname, 'src/index.tsx'), // Cambia se il tuo entrypoint è diverso!
       name: 'MyPoetryApp',
       fileName: (format) => `my-poetry-app.${format}.js`,
       formats: ['iife'],
     },
     rollupOptions: {
-      external: [
-        'react', 
-        'react-dom',
-        'react-router-dom',
-        // *** NON mettere '@supabase/supabase-js' qui ***
-      ],
+      // external: [   // <-- TUTTO COMMENTATO o vuoto!
+      //   'react', 
+      //   'react-dom',
+      //   'react-router-dom',
+      //   '@supabase/supabase-js'
+      // ],
       output: {
-        globals: {
-          react: 'React',
-          'react-dom': 'ReactDOM',
-          'react-router-dom': 'ReactRouterDOM',
-          // Niente Supabase globale!
-        },
+        // globals: {   // <-- TUTTO COMMENTATO!
+        //   react: 'React',
+        //   'react-dom': 'ReactDOM',
+        //   'react-router-dom': 'ReactRouterDOM',
+        //   '@supabase/supabase-js': 'Supabase'
+        // },
         inlineDynamicImports: true,
         extend: true,
         assetFileNames: 'assets/[name].[ext]'
