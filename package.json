@@ -1,11 +1,16 @@
 {
   "name": "poetry-ai-app",
   "version": "1.0.0",
+  "engines": {
+    "node": "18.x",
+    "npm": "9.x"
+  },
   "scripts": {
     "dev": "vite",
-    "build": "vite build && cp _headers dist/_headers",
+    "build": "vite build && cp _headers dist/_headers && cp netlify.toml dist/",
     "serve": "vite preview",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "netlify-build": "npm install --legacy-peer-deps && npm run build"
   },
   "dependencies": {
     "react": "^18.2.0",
@@ -13,7 +18,9 @@
     "react-router-dom": "^6.20.1",
     "react-icons": "^4.12.0",
     "@supabase/supabase-js": "^2.39.5",
-    "node-fetch": "^2.6.9"
+    "node-fetch": "^2.6.9",
+    "openai": "^4.28.4",
+    "elevenlabs": "^1.0.0"
   },
   "devDependencies": {
     "@types/react": "^18.2.0",
