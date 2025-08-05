@@ -9,7 +9,6 @@ function isIOSorSafari() {
     (/Safari/i.test(navigator.userAgent) && !/Chrome/i.test(navigator.userAgent));
 }
 
-// 👇🏻 QUI LA COSTANTE CORRETTA
 const NETLIFY_AUDIO_FUNCTION = '/.netlify/functions/genera-audio';
 
 const AudioPlayerWithHighlight = ({ 
@@ -30,9 +29,10 @@ const AudioPlayerWithHighlight = ({
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const words = content.split(/(\s+)/).filter(word => word.trim().length > 0);
   const wordRefs = useRef<(HTMLSpanElement | null)[]>([]);
-  const containerRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
+    console.log('[AudioPlayer] Initializing audio with URL:', audioUrl);
     const audio = new Audio(audioUrl);
     audio.preload = 'metadata';
     audioRef.current = audio;
@@ -40,11 +40,12 @@ const AudioPlayerWithHighlight = ({
     const handleTimeUpdate = () => {
       if (!audioRef.current) return;
       const currentTime = audioRef.current.currentTime;
-      const duration = audioRef.current.duration;
-      const newProgress = currentTime / duration;
+      const duration = audioRef.current.duration || 1;
+      const newProgress = (currentTime / duration) || 0;
       setProgress(newProgress);
       const wordIndex = Math.floor(newProgress * words.length);
       setCurrentWordIndex(Math.min(wordIndex, words.length - 1));
+      
       if (wordRefs.current[wordIndex]) {
         wordRefs.current[wordIndex]?.scrollIntoView({
           behavior: 'smooth',
@@ -53,25 +54,35 @@ const AudioPlayerWithHighlight = ({
       }
     };
 
+    const handleError = (e: any) => {
+      console.error('[AudioPlayer] Audio error:', e);
+      onError(`Errore riproduzione: ${e.target.error?.message || 'sconosciuto'}`);
+      setIsPlaying(false);
+    };
+
     audio.addEventListener('timeupdate', handleTimeUpdate);
     audio.addEventListener('ended', () => {
+      console.log('[AudioPlayer] Playback completed');
       setIsPlaying(false);
       setCurrentWordIndex(-1);
     });
-    audio.addEventListener('error', () => {
-      onError('Errore durante la riproduzione');
-      setIsPlaying(false);
-    });
+    audio.addEventListener('error', handleError);
 
     return () => {
+      console.log('[AudioPlayer] Cleanup');
       audio.removeEventListener('timeupdate', handleTimeUpdate);
+      audio.removeEventListener('error', handleError);
       audio.pause();
+      if (audioRef.current?.src.startsWith('blob:')) {
+        URL.revokeObjectURL(audioRef.current.src);
+      }
     };
   }, [audioUrl, words.length, onError]);
 
   const togglePlayback = async () => {
     if (!audioRef.current) return;
     try {
+      console.log(`[AudioPlayer] Toggling playback to ${!isPlaying}`);
       if (isPlaying) {
         await audioRef.current.pause();
       } else {
@@ -79,12 +90,13 @@ const AudioPlayerWithHighlight = ({
       }
       setIsPlaying(!isPlaying);
     } catch (err) {
-      console.error('Playback error:', err);
-      onError('Impossibile avviare la riproduzione');
+      console.error('[AudioPlayer] Playback error:', err);
+      onError(`Impossibile avviare: ${err instanceof Error ? err.message : String(err)}`);
     }
   };
 
   const handleStop = () => {
+    console.log('[AudioPlayer] Stopping playback');
     if (audioRef.current) {
       audioRef.current.pause();
       audioRef.current.currentTime = 0;
@@ -95,6 +107,7 @@ const AudioPlayerWithHighlight = ({
   };
 
   const handleSpeedChange = (speed: number) => {
+    console.log('[AudioPlayer] Changing speed to:', speed);
     if (audioRef.current) {
       audioRef.current.playbackRate = speed;
       setPlaybackRate(speed);
@@ -151,6 +164,11 @@ const AudioPlayerWithHighlight = ({
 };
 
 const PoetryPage = ({ poesia, onBack }: { poesia: any, onBack: () => void }) => {
+  console.log('[PoetryPage] Rendering for poem:', poesia.id, {
+    hasAudio: !!poesia.audio_url,
+    contentLength: poesia.content?.length
+  });
+
   const [audioUrl, setAudioUrl] = useState(poesia.audio_url || null);
   const [audioBlobUrl, setAudioBlobUrl] = useState<string | null>(null);
   const [loadingAudio, setLoadingAudio] = useState(false);
@@ -160,7 +178,8 @@ const PoetryPage = ({ poesia, onBack }: { poesia: any, onBack: () => void }) => 
   const parseAnalysis = (analysis: any) => {
     try {
       return typeof analysis === 'string' ? JSON.parse(analysis) : analysis;
-    } catch {
+    } catch (e) {
+      console.warn('[PoetryPage] Failed to parse analysis:', e);
       return null;
     }
   };
@@ -169,63 +188,130 @@ const PoetryPage = ({ poesia, onBack }: { poesia: any, onBack: () => void }) => 
   const analisiP = parseAnalysis(poesia.analisi_psicologica);
 
   const handleGeneraAudio = async () => {
+    console.groupCollapsed('[PoetryPage] Starting audio generation for:', poesia.id);
     setLoadingAudio(true);
     setAudioError(null);
+    
     try {
-      if (audioUrl) return;
-      const res = await fetch(NETLIFY_AUDIO_FUNCTION, {
+      if (audioUrl) {
+        console.log('Audio already exists, skipping generation');
+        return;
+      }
+
+      console.log('Calling Netlify Function:', NETLIFY_AUDIO_FUNCTION);
+      const startTime = performance.now();
+      
+      const response = await fetch(NETLIFY_AUDIO_FUNCTION, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           text: poesia.content,
-          poesia_id: poesia.id
+          poesia_id: poesia.id,
+          timestamp: new Date().toISOString()
         })
       });
-      const json = await res.json();
-      const newAudioUrl = json.audio_url || json.audioUrl;
-      if (newAudioUrl) {
-        setAudioUrl(newAudioUrl);
-        await supabase
-          .from('poesie')
-          .update({ audio_url: newAudioUrl, audio_generated: true })
-          .eq('id', poesia.id);
+
+      const responseTime = performance.now() - startTime;
+      console.log(`Netlify response (${Math.round(responseTime)}ms):`, response.status);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Error response:', errorText);
+        throw new Error(`API Error: ${response.status} - ${errorText.substring(0, 100)}`);
+      }
+
+      const data = await response.json();
+      console.log('Response data:', data);
+
+      if (!data.audio_url && !data.audioUrl) {
+        throw new Error('Invalid response: missing audio URL');
+      }
+
+      const finalUrl = data.audio_url || data.audioUrl;
+      console.log('Received audio URL:', finalUrl);
+
+      setAudioUrl(finalUrl);
+      console.log('Updating Supabase record...');
+      
+      const { error } = await supabase
+        .from('poesie')
+        .update({ 
+          audio_url: finalUrl, 
+          audio_generated: true,
+          audio_generated_at: new Date().toISOString()
+        })
+        .eq('id', poesia.id);
+
+      if (error) {
+        console.error('Supabase update error:', error);
+      } else {
+        console.log('Supabase updated successfully');
       }
     } catch (err) {
-      setAudioError('Errore nella generazione audio');
+      console.error('Generation failed:', err);
+      setAudioError(err instanceof Error ? err.message : 'Errore generazione audio');
     } finally {
+      console.groupEnd();
       setLoadingAudio(false);
     }
   };
 
-  // Fetch blob per iOS
   const fetchAudioAsBlob = useCallback(async (url: string) => {
+    console.group('[PoetryPage] Fetching audio blob for iOS');
     setLoadingAudio(true);
     setAudioError(null);
+    
     try {
-      const res = await fetch(`${url}?ts=${Date.now()}`, {
+      console.log('Fetching URL:', url);
+      const timestampedUrl = `${url}?ts=${Date.now()}`;
+      const response = await fetch(timestampedUrl, {
         cache: 'no-store',
         mode: 'cors'
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const contentType = res.headers.get('content-type');
-      if (!contentType?.includes('audio/')) {
-        throw new Error(`Invalid MIME type: ${contentType}`);
+
+      console.log('Response status:', response.status);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
       }
-      const blob = await res.blob();
-      setAudioBlobUrl(URL.createObjectURL(blob));
+
+      const contentType = response.headers.get('content-type');
+      console.log('Content-Type:', contentType);
+      
+      if (!contentType?.includes('audio/')) {
+        throw new Error(`Expected audio, got ${contentType}`);
+      }
+
+      const blob = await response.blob();
+      console.log('Blob size:', blob.size, 'bytes');
+      
+      if (blob.size === 0) {
+        throw new Error('Empty audio blob');
+      }
+
+      const blobUrl = URL.createObjectURL(blob);
+      console.log('Created blob URL');
+      setAudioBlobUrl(blobUrl);
     } catch (err) {
-      console.error('Audio fetch error:', err);
-      setAudioError('Errore nel caricamento audio');
+      console.error('Blob fetch failed:', err);
+      setAudioError('Errore caricamento audio');
     } finally {
+      console.groupEnd();
       setLoadingAudio(false);
     }
   }, []);
 
   useEffect(() => {
     if (!audioUrl || !isIOSorSafari() || audioBlobUrl) return;
+    
+    console.log('iOS detected, starting blob fetch');
     fetchAudioAsBlob(audioUrl);
+    
     return () => {
-      if (audioBlobUrl) URL.revokeObjectURL(audioBlobUrl);
+      if (audioBlobUrl) {
+        console.log('Cleaning up blob URL');
+        URL.revokeObjectURL(audioBlobUrl);
+      }
     };
   }, [audioUrl, audioBlobUrl, fetchAudioAsBlob]);
 
@@ -261,7 +347,7 @@ const PoetryPage = ({ poesia, onBack }: { poesia: any, onBack: () => void }) => 
                 </button>
                 <a
                   href={audioUrl}
-                  download
+                  download={`${poesia.title.replace(/ /g, '_')}.mp3`}
                   className="audio-download-link"
                 >
                   <FaDownload /> Scarica audio
@@ -277,7 +363,10 @@ const PoetryPage = ({ poesia, onBack }: { poesia: any, onBack: () => void }) => 
               </button>
             )}
             {audioError && (
-              <div className="audio-error">{audioError}</div>
+              <div className="audio-error">
+                {audioError}
+                <button onClick={() => setAudioError(null)}>×</button>
+              </div>
             )}
           </div>
           <div className="analysis-sections">
@@ -310,6 +399,7 @@ const PoetryPage = ({ poesia, onBack }: { poesia: any, onBack: () => void }) => 
 };
 
 const App = () => {
+  console.log('[App] Initial render');
   const [state, setState] = useState({
     poesie: [] as any[],
     loading: true,
@@ -319,35 +409,65 @@ const App = () => {
   });
 
   const fetchPoesie = useCallback(async () => {
+    console.group('[App] Fetching poems');
     setState(prev => ({ ...prev, loading: true, error: null }));
+    
     try {
+      console.log('Querying Supabase...');
       const { data, error } = await supabase
         .from('poesie')
         .select('id, title, content, author_name, analisi_letteraria, analisi_psicologica, audio_url, created_at')
         .order('created_at', { ascending: false })
         .limit(50);
-      if (error) throw error;
+
+      if (error) {
+        console.error('Supabase error:', error);
+        throw error;
+      }
+
+      console.log(`Received ${data?.length || 0} poems`);
       setState(prev => ({ ...prev, poesie: data || [], loading: false }));
     } catch (err) {
-      setState(prev => ({ ...prev, error: 'Errore nel caricamento', loading: false }));
+      console.error('Fetch error:', err);
+      setState(prev => ({
+        ...prev,
+        error: 'Errore nel caricamento',
+        loading: false,
+        poesie: prev.poesie.length > 0 ? prev.poesie : []
+      }));
+    } finally {
+      console.groupEnd();
     }
   }, []);
 
   useEffect(() => {
+    console.log('[App] Component mounted, initial fetch');
     fetchPoesie();
-    const interval = setInterval(fetchPoesie, 300000);
-    return () => clearInterval(interval);
+    
+    const interval = setInterval(() => {
+      console.log('[App] Periodic refresh');
+      fetchPoesie();
+    }, 300000);
+    
+    return () => {
+      console.log('[App] Component unmounted');
+      clearInterval(interval);
+    };
   }, [fetchPoesie]);
 
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setState(prev => ({ ...prev, search: e.target.value }));
+    const query = e.target.value;
+    console.log('[App] Search query:', query);
+    setState(prev => ({ ...prev, search: query }));
   };
 
   const handleSelectPoesia = (poesia: any) => {
+    console.log('[App] Selected poem:', poesia.id);
     setState(prev => ({ ...prev, selectedPoesia: poesia }));
   };
 
   const handleBackToList = () => {
+    console.log('[App] Returning to list');
     setState(prev => ({ ...prev, selectedPoesia: null }));
   };
 
@@ -356,6 +476,8 @@ const App = () => {
     p.author_name?.toLowerCase().includes(state.search.toLowerCase()) ||
     p.content?.toLowerCase().includes(state.search.toLowerCase())
   );
+
+  console.log('[App] Filtered poems count:', poesieFiltrate.length);
 
   return (
     <div className="app-container">
@@ -378,7 +500,10 @@ const App = () => {
               {state.search && (
                 <button
                   className="clear-search"
-                  onClick={() => setState(prev => ({ ...prev, search: "" }))}
+                  onClick={() => {
+                    console.log('[App] Clearing search');
+                    setState(prev => ({ ...prev, search: "" }));
+                  }}
                   aria-label="Pulisci ricerca"
                 >
                   ×
@@ -389,7 +514,12 @@ const App = () => {
           {state.error && (
             <div className="error-message">
               {state.error}
-              <button onClick={fetchPoesie}>Riprova</button>
+              <button onClick={() => {
+                console.log('[App] Retrying fetch after error');
+                fetchPoesie();
+              }}>
+                Riprova
+              </button>
             </div>
           )}
           <main className="poesie-list">
@@ -405,10 +535,15 @@ const App = () => {
                   <h3>{poesia.title}</h3>
                   <p className="author">{poesia.author_name || "Anonimo"}</p>
                   <p className="preview">{poesia.content?.slice(0, 120)}...</p>
+                  {poesia.audio_url && (
+                    <span className="audio-badge">🎧 Audio disponibile</span>
+                  )}
                 </div>
               ))
             ) : (
-              <div className="empty-state">Nessuna poesia trovata</div>
+              <div className="empty-state">
+                {state.search ? "Nessun risultato" : "Nessuna poesia trovata"}
+              </div>
             )}
           </main>
         </>
