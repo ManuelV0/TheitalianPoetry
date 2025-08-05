@@ -1,16 +1,16 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { supabase } from './lib/supabaseClient';
-import { useNavigate } from 'react-router-dom'; // Se usi React Router
-import { FaArrowLeft, FaPlay, FaPause, FaStop, FaDownload } from 'react-icons/fa'; // Importa icone
+import { useNavigate } from 'react-router-dom';
+import { FaArrowLeft, FaPlay, FaPause, FaStop, FaDownload } from 'react-icons/fa';
 
-// --- IMPROVED SAFARI/iOS DETECTION ---
 function isIOSorSafari() {
   if (typeof navigator === "undefined") return false;
   return /iP(ad|hone|od)/.test(navigator.userAgent) ||
     (/Safari/i.test(navigator.userAgent) && !/Chrome/i.test(navigator.userAgent));
 }
 
-// --- AUDIO PLAYER WITH HIGHLIGHT ---
+const NETLIFY_AUDIO_FUNCTION = 'https://poetry.theitalianpoetryproject.com/.netlify/functions/genera-audio';
+
 const AudioPlayerWithHighlight = ({ 
   content, 
   audioUrl,
@@ -31,7 +31,6 @@ const AudioPlayerWithHighlight = ({
   const wordRefs = useRef<(HTMLSpanElement | null)[]>([]);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Inizializza l'audio e il tracciamento del testo
   useEffect(() => {
     const audio = new Audio(audioUrl);
     audio.preload = 'metadata';
@@ -39,16 +38,12 @@ const AudioPlayerWithHighlight = ({
 
     const handleTimeUpdate = () => {
       if (!audioRef.current) return;
-      
       const currentTime = audioRef.current.currentTime;
       const duration = audioRef.current.duration;
       const newProgress = currentTime / duration;
       setProgress(newProgress);
-      
       const wordIndex = Math.floor(newProgress * words.length);
       setCurrentWordIndex(Math.min(wordIndex, words.length - 1));
-      
-      // Scroll alla parola corrente con contesto
       if (wordRefs.current[wordIndex]) {
         wordRefs.current[wordIndex]?.scrollIntoView({
           behavior: 'smooth',
@@ -75,7 +70,6 @@ const AudioPlayerWithHighlight = ({
 
   const togglePlayback = async () => {
     if (!audioRef.current) return;
-    
     try {
       if (isPlaying) {
         await audioRef.current.pause();
@@ -116,7 +110,6 @@ const AudioPlayerWithHighlight = ({
         <button onClick={handleStop} className="stop-button">
           <FaStop /> Stop
         </button>
-        
         <div className="speed-controls">
           <span>Velocità:</span>
           {[0.5, 0.75, 1, 1.25, 1.5].map(speed => (
@@ -129,19 +122,16 @@ const AudioPlayerWithHighlight = ({
             </button>
           ))}
         </div>
-        
         <div className="progress-bar">
           <div 
             className="progress-fill" 
             style={{ width: `${progress * 100}%` }}
           />
         </div>
-
         <button onClick={onClose} className="back-button">
           <FaArrowLeft /> Torna indietro
         </button>
       </div>
-      
       <div className="content-highlight">
         {words.map((word, index) => (
           <span 
@@ -159,7 +149,6 @@ const AudioPlayerWithHighlight = ({
   );
 };
 
-// --- POETRY PAGE COMPONENT ---
 const PoetryPage = ({ poesia, onBack }: { poesia: any, onBack: () => void }) => {
   const [audioUrl, setAudioUrl] = useState(poesia.audio_url || null);
   const [audioBlobUrl, setAudioBlobUrl] = useState<string | null>(null);
@@ -167,7 +156,6 @@ const PoetryPage = ({ poesia, onBack }: { poesia: any, onBack: () => void }) => 
   const [audioError, setAudioError] = useState<string | null>(null);
   const [showAudioPlayer, setShowAudioPlayer] = useState(false);
 
-  // Parsing delle analisi
   const parseAnalysis = (analysis: any) => {
     try {
       return typeof analysis === 'string' ? JSON.parse(analysis) : analysis;
@@ -179,14 +167,12 @@ const PoetryPage = ({ poesia, onBack }: { poesia: any, onBack: () => void }) => 
   const analisiL = parseAnalysis(poesia.analisi_letteraria);
   const analisiP = parseAnalysis(poesia.analisi_psicologica);
 
-  // Generazione audio
   const handleGeneraAudio = async () => {
     setLoadingAudio(true);
     setAudioError(null);
     try {
       if (audioUrl) return;
-      
-      const res = await fetch('/.netlify/functions/genera-audio', {
+      const res = await fetch(NETLIFY_AUDIO_FUNCTION, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -194,7 +180,6 @@ const PoetryPage = ({ poesia, onBack }: { poesia: any, onBack: () => void }) => 
           poesia_id: poesia.id
         })
       });
-      
       const json = await res.json();
       const newAudioUrl = json.audio_url || json.audioUrl;
       if (newAudioUrl) {
@@ -220,14 +205,11 @@ const PoetryPage = ({ poesia, onBack }: { poesia: any, onBack: () => void }) => 
         cache: 'no-store',
         mode: 'cors'
       });
-      
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      
       const contentType = res.headers.get('content-type');
       if (!contentType?.includes('audio/')) {
         throw new Error(`Invalid MIME type: ${contentType}`);
       }
-
       const blob = await res.blob();
       setAudioBlobUrl(URL.createObjectURL(blob));
     } catch (err) {
@@ -238,12 +220,9 @@ const PoetryPage = ({ poesia, onBack }: { poesia: any, onBack: () => void }) => 
     }
   }, []);
 
-  // Gestione audio per iOS
   useEffect(() => {
     if (!audioUrl || !isIOSorSafari() || audioBlobUrl) return;
-
     fetchAudioAsBlob(audioUrl);
-    
     return () => {
       if (audioBlobUrl) URL.revokeObjectURL(audioBlobUrl);
     };
@@ -254,12 +233,10 @@ const PoetryPage = ({ poesia, onBack }: { poesia: any, onBack: () => void }) => 
       <button onClick={onBack} className="back-button">
         <FaArrowLeft /> Torna all'elenco
       </button>
-
       <div className="poetry-header">
         <h1>{poesia.title}</h1>
         <p className="author">{poesia.author_name || "Anonimo"}</p>
       </div>
-
       {showAudioPlayer && audioUrl ? (
         <AudioPlayerWithHighlight 
           content={poesia.content} 
@@ -272,7 +249,6 @@ const PoetryPage = ({ poesia, onBack }: { poesia: any, onBack: () => void }) => 
           <div className="poetry-text">
             <pre>{poesia.content}</pre>
           </div>
-
           <div className="audio-section">
             {audioUrl ? (
               <div className="audio-options">
@@ -299,12 +275,10 @@ const PoetryPage = ({ poesia, onBack }: { poesia: any, onBack: () => void }) => 
                 {loadingAudio ? "Generazione in corso..." : "🎙️ Genera voce AI"}
               </button>
             )}
-            
             {audioError && (
               <div className="audio-error">{audioError}</div>
             )}
           </div>
-
           <div className="analysis-sections">
             <section className="analysis-section">
               <h2>Analisi Letteraria</h2>
@@ -317,7 +291,6 @@ const PoetryPage = ({ poesia, onBack }: { poesia: any, onBack: () => void }) => 
                 </div>
               ) : <p className="no-analysis">Nessuna analisi disponibile</p>}
             </section>
-
             <section className="analysis-section">
               <h2>Analisi Psicologica</h2>
               {analisiP ? (
@@ -335,7 +308,6 @@ const PoetryPage = ({ poesia, onBack }: { poesia: any, onBack: () => void }) => 
   );
 };
 
-// --- MAIN APP COMPONENT ---
 const App = () => {
   const [state, setState] = useState({
     poesie: [] as any[],
@@ -353,7 +325,6 @@ const App = () => {
         .select('id, title, content, author_name, analisi_letteraria, analisi_psicologica, audio_url, created_at')
         .order('created_at', { ascending: false })
         .limit(50);
-      
       if (error) throw error;
       setState(prev => ({ ...prev, poesie: data || [], loading: false }));
     } catch (err) {
@@ -414,14 +385,12 @@ const App = () => {
               )}
             </div>
           </header>
-
           {state.error && (
             <div className="error-message">
               {state.error}
               <button onClick={fetchPoesie}>Riprova</button>
             </div>
           )}
-
           <main className="poesie-list">
             {state.loading ? (
               <div className="loader">Caricamento...</div>
