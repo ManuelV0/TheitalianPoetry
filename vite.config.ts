@@ -21,22 +21,24 @@ export default defineConfig({
       entry: path.resolve(__dirname, 'src/index.tsx'), // Cambia se il tuo entrypoint è diverso!
       name: 'MyPoetryApp',
       fileName: (format) => `my-poetry-app.${format}.js`,
-      formats: ['iife'],
+      formats: ['iife'], // fondamentale per l'embed
     },
     rollupOptions: {
-      // external: [   // <-- TUTTO COMMENTATO o vuoto!
-      //   'react', 
-      //   'react-dom',
-      //   'react-router-dom',
-      //   '@supabase/supabase-js'
-      // ],
+      // IMPORTANTE: lascia questi external se vuoi usare React, ReactDOM ecc. da CDN
+      external: [
+        'react', 
+        'react-dom',
+        'react-router-dom',
+        '@supabase/supabase-js'
+      ],
       output: {
-        // globals: {   // <-- TUTTO COMMENTATO!
-        //   react: 'React',
-        //   'react-dom': 'ReactDOM',
-        //   'react-router-dom': 'ReactRouterDOM',
-        //   '@supabase/supabase-js': 'Supabase'
-        // },
+        // Questi nomi DEVONO combaciare con le variabili globali dei CDN UMD (vedi HTML sotto)
+        globals: {
+          react: 'React',
+          'react-dom': 'ReactDOM',
+          'react-router-dom': 'ReactRouterDOM',
+          '@supabase/supabase-js': 'Supabase'
+        },
         inlineDynamicImports: true,
         extend: true,
         assetFileNames: 'assets/[name].[ext]'
