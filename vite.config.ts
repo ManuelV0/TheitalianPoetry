@@ -1,53 +1,75 @@
+
+  // vite.config.js
+
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
-import path from 'path'
+import path from 'node:path'
 
 export default defineConfig({
   plugins: [react()],
   define: {
-    'process.env': process.env.NODE_ENV === 'production' 
-      ? {
-          NODE_ENV: '"production"',
-          VITE_SUPABASE_URL: `"${process.env.VITE_SUPABASE_URL}"`,
-          VITE_SUPABASE_ANON_KEY: `"${process.env.VITE_SUPABASE_ANON_KEY}"`
-        } 
-      : {
-          NODE_ENV: '"development"'
-        },
-    global: {}
+    'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'production'),
+    'process.platform': JSON.stringify('browser'),
+    global: 'window'
   },
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, './src'),
-      '@components': path.resolve(__dirname, './src/components')
-    }
+      '@': path.resolve(__dirname, 'src'),
+    },
   },
   build: {
-    outDir: 'dist',
-    emptyOutDir: true,
+    lib: {
+      entry: path.resolve(__dirname, 'src/index.tsx'), // cambia se il tuo entrypoint è diverso!
+      name: 'MyPoetryApp',
+      fileName: (format) => `my-poetry-app.${format}.js`,
+      formats: ['iife'],
+    },
     rollupOptions: {
-      input: path.resolve(__dirname, 'index.html'),
-      external: ['react', 'react-dom'],
+      external: [
+        'react', 
+        'react-dom',
+        'react-router-dom',
+        '@supabase/supabase-js'
+      ],
       output: {
         globals: {
           react: 'React',
-          'react-dom': 'ReactDOM'
+          'react-dom': 'ReactDOM',
+          'react-router-dom': 'ReactRouterDOM',
+          '@supabase/supabase-js': 'Supabase'
         },
-        assetFileNames: 'assets/[name].[hash].[ext]',
-        chunkFileNames: 'chunks/[name].[hash].js',
-        entryFileNames: 'entries/[name].[hash].js'
+        inlineDynamicImports: true,
+        extend: true,
+        assetFileNames: 'assets/[name].[ext]'
       }
     },
+    outDir: 'dist',
+    emptyOutDir: true,
+    target: 'es2015',
     minify: 'terser',
-    sourcemap: true
+    terserOptions: {
+      compress: {
+        drop_console: true,
+        drop_debugger: true
+      },
+      format: { comments: false }
+    },
+    sourcemap: process.env.NODE_ENV !== 'production',
+    chunkSizeWarningLimit: 2000
+  },
+  optimizeDeps: {
+    include: [
+      'react',
+      'react-dom',
+      'react-router-dom',
+      '@supabase/supabase-js'
+    ],
+    exclude: ['js-big-decimal'],
+    esbuildOptions: { target: 'es2015' }
   },
   server: {
     port: 3000,
-    open: true,
-    cors: true
-  },
-  preview: {
-    port: 4173,
+    strictPort: true,
     open: true
   }
 })
