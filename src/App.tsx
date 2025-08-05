@@ -9,6 +9,7 @@ function isIOSorSafari() {
     (/Safari/i.test(navigator.userAgent) && !/Chrome/i.test(navigator.userAgent));
 }
 
+// 👇🏻 QUI LA COSTANTE CORRETTA
 const NETLIFY_AUDIO_FUNCTION = '/.netlify/functions/genera-audio';
 
 const AudioPlayerWithHighlight = ({ 
