@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { supabase } from './lib/supabaseClient';
 import { useNavigate } from 'react-router-dom';
@@ -203,7 +204,10 @@ const PoetryPage = ({ poesia, onBack }: { poesia: any, onBack: () => void }) => 
       
       const response = await fetch(NETLIFY_AUDIO_FUNCTION, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'X-Request-ID': `poesia-${poesia.id}-${Date.now()}`
+        },
         body: JSON.stringify({
           text: poesia.content,
           poesia_id: poesia.id,
@@ -266,7 +270,10 @@ const PoetryPage = ({ poesia, onBack }: { poesia: any, onBack: () => void }) => 
       const timestampedUrl = `${url}?ts=${Date.now()}`;
       const response = await fetch(timestampedUrl, {
         cache: 'no-store',
-        mode: 'cors'
+        mode: 'cors',
+        headers: {
+          'Cache-Control': 'no-cache'
+        }
       });
 
       console.log('Response status:', response.status);
@@ -365,7 +372,12 @@ const PoetryPage = ({ poesia, onBack }: { poesia: any, onBack: () => void }) => 
             {audioError && (
               <div className="audio-error">
                 {audioError}
-                <button onClick={() => setAudioError(null)}>×</button>
+                <button 
+                  onClick={() => setAudioError(null)}
+                  aria-label="Chiudi messaggio di errore"
+                >
+                  ×
+                </button>
               </div>
             )}
           </div>
