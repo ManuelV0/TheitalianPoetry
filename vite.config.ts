@@ -19,7 +19,7 @@ export default defineConfig({
   },
   build: {
     lib: {
-      entry: path.resolve(__dirname, 'src/index.tsx'), // cambia se il tuo entrypoint è diverso!
+      entry: path.resolve(__dirname, 'src/index.tsx'), // Cambia se il tuo entrypoint è diverso
       name: 'MyPoetryApp',
       fileName: (format) => `my-poetry-app.${format}.js`,
       formats: ['iife'],
@@ -29,14 +29,14 @@ export default defineConfig({
         'react', 
         'react-dom',
         'react-router-dom',
-        '@supabase/supabase-js'
+        // *** NON mettere '@supabase/supabase-js' qui ***
       ],
       output: {
         globals: {
           react: 'React',
           'react-dom': 'ReactDOM',
           'react-router-dom': 'ReactRouterDOM',
-          '@supabase/supabase-js': 'Supabase'
+          // Niente Supabase globale!
         },
         inlineDynamicImports: true,
         extend: true,
