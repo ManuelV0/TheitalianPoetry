@@ -1,31 +1,16 @@
-{
-  "name": "poetry-ai-app",
-  "version": "1.0.0",
-  "engines": {
-    "node": "18.x",
-    "npm": "9.x"
-  },
-  "scripts": {
-    "dev": "vite",
-    "build": "vite build && cp _headers dist/_headers",
-    "serve": "vite preview",
-    "preview": "vite preview",
-    "netlify-build": "npm install --legacy-peer-deps && npm run build"
-  },
-  "dependencies": {
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "react-router-dom": "^6.20.1",
-    "react-icons": "^4.12.0",
-    "@supabase/supabase-js": "^2.39.5",
-    "openai": "^4.28.4",
-    "elevenlabs": "^1.0.0"
-  },
-  "devDependencies": {
-    "@types/react": "^18.2.0",
-    "@types/react-dom": "^18.2.0",
-    "@vitejs/plugin-react": "^4.2.1",
-    "typescript": "^5.3.0",
-    "vite": "^5.0.0"
+[build]
+  command = "npm run netlify-build"
+  publish = "dist"
+  environment = { 
+    NODE_VERSION = "18",
+    NPM_FLAGS = "--legacy-peer-deps"
   }
-}
+
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
