@@ -2,18 +2,51 @@
 [build]
   command = "npm run build"
   publish = "dist"
+  environment = { NODE_VERSION = "18" }
 
 [functions]
   directory = "netlify/functions"
+  node_bundler = "esbuild"  # Ottimizzazione bundle
+  included_files = [
+    "netlify/functions/*.js",
+    "lib/supabaseClient.js"
+  ]
 
 [[headers]]
   for = "/my-poetry-app*.js"
   [headers.values]
     Access-Control-Allow-Origin = "*"
     Content-Type = "application/javascript"
-    Cache-Control = "public, max-age=3600"
+    Cache-Control = "public, max-age=3600, immutable"
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
 
 [[headers]]
   for = "/build-info.txt"
   [headers.values]
+    Cache-Control = "no-store, no-cache, must-revalidate"
+    X-Robots-Tag = "noindex"
+
+[[headers]]
+  for = "/.netlify/functions/*"
+  [headers.values]
+    Access-Control-Allow-Origin = "*"
+    Access-Control-Allow-Methods = "GET, POST, OPTIONS"
+    Access-Control-Allow-Headers = "Content-Type, Authorization"
     Cache-Control = "no-store"
+
+[[redirects]]
+  from = "/audio/*"
+  to = "/.netlify/functions/genera-audio"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+[dev]
+  framework = "#custom"
+  targetPort = 3000
+  autoLaunch = true
