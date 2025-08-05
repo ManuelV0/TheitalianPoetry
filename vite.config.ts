@@ -5,14 +5,13 @@ import path from 'path'
 export default defineConfig({
   plugins: [react()],
   define: {
-    'process.env.NODE_ENV': JSON.stringify('production'),
+    'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'production'),
     'process.platform': JSON.stringify('browser'),
     global: 'window'
   },
   resolve: {
     alias: {
       '@': path.resolve(__dirname, 'src'),
-      // Aggiungi alias per react-router-dom se necessario
       'react-router-dom': path.resolve(__dirname, 'node_modules/react-router-dom'),
     },
   },
@@ -27,27 +26,36 @@ export default defineConfig({
       external: [
         'react', 
         'react-dom',
-        'react-router-dom', // Aggiunto per risolvere l'errore
+        'react-router-dom',
+        '@supabase/supabase-js'
       ],
       output: {
         globals: {
           react: 'React',
           'react-dom': 'ReactDOM',
-          'react-router-dom': 'ReactRouterDOM' // Aggiunto
+          'react-router-dom': 'ReactRouterDOM'
         },
         inlineDynamicImports: true,
-        extend: true
+        extend: true,
+        assetFileNames: 'assets/[name].[ext]'
       }
     },
     outDir: 'dist',
     emptyOutDir: true,
     target: 'es2015',
-    // Aggiunto per ottimizzare la build
     minify: 'terser',
-    sourcemap: true,
-    chunkSizeWarningLimit: 1600
+    terserOptions: {
+      compress: {
+        drop_console: true,
+        drop_debugger: true
+      },
+      format: {
+        comments: false
+      }
+    },
+    sourcemap: process.env.NODE_ENV !== 'production',
+    chunkSizeWarningLimit: 2000
   },
-  // Aggiunto per ottimizzare le dipendenze
   optimizeDeps: {
     include: [
       'react',
@@ -55,6 +63,14 @@ export default defineConfig({
       'react-router-dom',
       '@supabase/supabase-js'
     ],
-    exclude: ['js-big-decimal']
+    exclude: ['js-big-decimal'],
+    esbuildOptions: {
+      target: 'es2015'
+    }
+  },
+  server: {
+    port: 3000,
+    strictPort: true,
+    open: true
   }
 })
