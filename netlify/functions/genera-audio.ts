@@ -5,7 +5,7 @@ const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fet
 
 // --- CONFIGURAZIONE SUPABASE (SERVICE KEY necessaria!) ---
 const SUPABASE_URL = process.env.SUPABASE_URL;
-const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY; // Usa il nome giusto!
+const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY;
 const VOICE_ID = 'uScy1bXtKz8vPzfdFsFw'; // Voce italiana maschile ElevenLabs
 
@@ -23,23 +23,13 @@ exports.handler = async function(event, context) {
     };
   }
 
-  // Debug variabili env (SOLO in caso di errore)
+  // Debug su variabili ambiente (log solo su errori)
   if (!SUPABASE_URL) console.error('❌ SUPABASE_URL mancante!');
   if (!SUPABASE_SERVICE_KEY) console.error('❌ SUPABASE_SERVICE_ROLE_KEY mancante!');
   if (!ELEVENLABS_API_KEY) console.error('❌ ELEVENLABS_API_KEY mancante!');
 
-  // Parsing body
-  let text, poesia_id;
-  try {
-    ({ text, poesia_id } = JSON.parse(event.body || '{}'));
-  } catch {
-    return {
-      statusCode: 400,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ error: 'Body non valido' }),
-    };
-  }
-
+  // Parsing del body JSON
+  const { text, poesia_id } = JSON.parse(event.body || '{}');
   if (!text || !poesia_id) {
     return {
       statusCode: 400,
@@ -67,7 +57,7 @@ exports.handler = async function(event, context) {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          text,
+          text: text,
           model_id: 'eleven_multilingual_v2',
           voice_settings: {
             stability: 0.5,
@@ -91,6 +81,8 @@ exports.handler = async function(event, context) {
 
     // 2. Carica su Supabase Storage
     const fileName = `poesia-${poesia_id}-${Date.now()}.mp3`;
+
+    // Forza upsert
     const { error: uploadError } = await supabase
       .storage
       .from('poetry-audio')
@@ -108,13 +100,11 @@ exports.handler = async function(event, context) {
       };
     }
 
-    // 3. Ottieni URL pubblico (nuova sintassi supabase-js 2.x)
-    const { data, error: urlError } = supabase
+    // 3. Ottieni URL pubblico del file caricato
+    const { data: { publicUrl }, error: urlError } = supabase
       .storage
       .from('poetry-audio')
       .getPublicUrl(fileName);
-
-    const publicUrl = data?.publicUrl;
 
     if (urlError || !publicUrl) {
       console.error('❌ Errore publicUrl Supabase:', urlError?.message);
@@ -133,7 +123,7 @@ exports.handler = async function(event, context) {
 
     if (updateError) {
       console.error('❌ Errore update DB:', updateError.message);
-      // Non blocchiamo, l'audio è stato generato
+      // Proseguiamo comunque, perché l'audio è stato generato e caricato.
     }
 
     return {
@@ -147,7 +137,7 @@ exports.handler = async function(event, context) {
     return {
       statusCode: 500,
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ error: 'Errore interno del server', details: error.message }),
+      body: JSON.stringify({ error: 'Errore interno del server' }),
     };
   }
 };
