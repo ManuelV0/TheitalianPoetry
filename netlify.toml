@@ -9,8 +9,46 @@
 [functions]
   directory = "netlify/functions"
   node_bundler = "esbuild"
+  included_files = [
+    "netlify/functions/*.js",
+    "lib/supabaseClient.js"
+  ]
 
+# Configurazione CORS globale per API
+[[headers]]
+  for = "/api/*"
+  [headers.values]
+    Access-Control-Allow-Origin = "*"
+    Access-Control-Allow-Methods = "GET, POST, PUT, DELETE, OPTIONS"
+    Access-Control-Allow-Headers = "Content-Type, Authorization, X-Requested-With"
+    Access-Control-Allow-Credentials = "true"
+    Access-Control-Max-Age = "86400"
+
+# Configurazione CORS per Funzioni Netlify
+[[headers]]
+  for = "/.netlify/functions/*"
+  [headers.values]
+    Access-Control-Allow-Origin = "*"
+    Access-Control-Allow-Methods = "GET, POST, PUT, OPTIONS"
+    Access-Control-Allow-Headers = "Content-Type, Authorization"
+    Vary = "Origin"
+
+# Configurazione per asset statici
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+    Access-Control-Allow-Origin = "*"
+
+# Redirect di base per SPA
 [[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200
+
+# Configurazione sviluppo locale
+[dev]
+  framework = "vite"
+  targetPort = 3000
+  autoLaunch = true
+  command = "vite dev --host"
