@@ -10,8 +10,7 @@
     "dev": "vite",
     "build": "vite build",
     "prebuild": "npm install --legacy-peer-deps",
-    "serve": "vite preview",
-    "test": "vitest"
+    "serve": "vite preview"
   },
   "dependencies": {
     "react": "^18.2.0",
@@ -23,7 +22,9 @@
     "tailwindcss": "^3.3.2",
     "postcss": "^8.4.21",
     "autoprefixer": "^10.4.13",
-    "@tailwindcss/typography": "^0.5.10"
+    "@tailwindcss/typography": "^0.5.10",
+    "crypto-js": "^4.1.1",
+    "axios": "^1.6.2"
   },
   "devDependencies": {
     "@types/react": "^18.2.0",
@@ -34,4 +35,4 @@
     "@netlify/functions": "^1.5.0",
     "vitest": "^1.2.2"
   }
-}
+}:
