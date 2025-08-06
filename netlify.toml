@@ -2,20 +2,57 @@
 [build]
   publish = "dist"
   functions = "netlify/functions"
+  command = "npm run build"
 
-# Configurazione CORS minima ma efficace
+# Configurazione di sicurezza base
+[build.environment]
+  NODE_VERSION = "18"
+  NPM_VERSION = "9"
+
+# Configurazione CORS globale (sicura)
 [[headers]]
-  for = "/*"  # Applica a tutti i percorsi
+  for = "/*"
   [headers.values]
-    Access-Control-Allow-Origin = "*"
-    Access-Control-Allow-Methods = "GET, POST, OPTIONS"
-    Access-Control-Allow-Headers = "Content-Type"
+    Access-Control-Allow-Origin = "https://poetry.theitalianpoetryproject.com"
+    Access-Control-Allow-Methods = "GET, POST, OPTIONS, DELETE"
+    Access-Control-Allow-Headers = "Content-Type, Authorization, X-Requested-With"
+    Access-Control-Allow-Credentials = "true"
+    X-Frame-Options = "DENY"
+    X-XSS-Protection = "1; mode=block"
+    Content-Security-Policy = "default-src 'self' https://*.theitalianpoetryproject.com https://*.googleapis.com https://*.gstatic.com; script-src 'self' 'unsafe-inline' https://*.googletagmanager.com https://*.google-analytics.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://*.google-analytics.com https://*.googletagmanager.com; connect-src 'self' https://*.theitalianpoetryproject.com https://*.google-analytics.com; frame-src 'self' https://*.google.com"
+    Strict-Transport-Security = "max-age=63072000; includeSubDomains; preload"
+    Referrer-Policy = "strict-origin-when-cross-origin"
 
+# Configurazione specifica per le functions
 [[headers]]
   for = "/.netlify/functions/*"
   [headers.values]
-    Access-Control-Allow-Origin = "*"
-    Access-Control-Expose-Headers = "Content-Length"
+    Access-Control-Allow-Origin = "https://poetry.theitalianpoetryproject.com"
+    Access-Control-Allow-Credentials = "true"
+    Access-Control-Expose-Headers = "Content-Length, X-Total-Count"
+    Access-Control-Max-Age = "86400"
 
+# Redirect importanti
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+# Configurazione di sviluppo
 [dev]
   autoLaunch = true
+  framework = "#static"
+  targetPort = 3000
+  publish = "dist"
+  functions = "netlify/functions"
+
+# Edge Functions (opzionale)
+[[edge_functions]]
+  path = "/api/edge"
+  function = "edge-function"
