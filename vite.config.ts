@@ -7,10 +7,10 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     lib: {
-      entry: path.resolve(__dirname, 'src/index.tsx'),   // <-- il tuo entrypoint reale!
-      name: 'MyPoetryApp',                               // l’oggetto globale che esporti su window
-      formats: ['iife'],                                 // build come file standalone <script>
-      fileName: () => 'my-poetry-app.iife.js',           // nome del bundle
+      entry: path.resolve(__dirname, 'src/index.tsx'),
+      name: 'MyPoetryApp',
+      formats: ['iife'],
+      fileName: () => 'my-poetry-app.iife.js',
     },
     rollupOptions: {
       output: {
@@ -19,7 +19,7 @@ export default defineConfig({
           'react-dom': 'ReactDOM'
         }
       },
-      external: ['react', 'react-dom'],                  // NON includere React nel bundle, userà quello CDN (come il tuo HTML)
+      external: ['react', 'react-dom'],
     },
     minify: 'terser',
     emptyOutDir: true,
