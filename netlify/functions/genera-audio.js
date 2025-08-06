@@ -1,26 +1,24 @@
 const { createClient } = require('@supabase/supabase-js');
 const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fetch(...args));
 
-// --- CONFIGURAZIONE SUPABASE (SERVICE KEY necessaria!) ---
+// Configurazione Supabase
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY;
-const VOICE_ID = 'uScy1bXtKz8vPzfdFsFw'; // Voce italiana maschile ElevenLabs
+const VOICE_ID = 'uScy1bXtKz8vPzfdFsFw'; // Voce italiana ElevenLabs
 
-const supabase = createClient(
-  SUPABASE_URL,
-  SUPABASE_SERVICE_KEY
-);
+// Inizializza client Supabase
+const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
-// ---- CORS HEADER ---
+// Configurazione CORS
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*', // oppure 'https://theitalianpoetryproject.com'
+  'Access-Control-Allow-Origin': 'https://theitalianpoetryproject.com',
   'Access-Control-Allow-Headers': 'Content-Type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS'
 };
 
-exports.handler = async function(event, context) {
-  // --- CORS: gestisci preflight OPTIONS subito! ---
+exports.handler = async (event, context) => {
+  // Gestione preflight CORS
   if (event.httpMethod === 'OPTIONS') {
     return {
       statusCode: 200,
@@ -29,66 +27,56 @@ exports.handler = async function(event, context) {
     };
   }
 
-  console.log('🟠 [genera-audio] Function CALLED!');
-  console.log('🟡 Method:', event.httpMethod);
-  console.log('🟡 Headers:', event.headers);
-  console.log('🟡 Body:', event.body);
+  // Log iniziale
+  console.log('[Audio Generation] Inizio elaborazione richiesta');
 
+  // Verifica metodo HTTP
   if (event.httpMethod !== 'POST') {
-    console.log('🔴 Solo POST ammesso!');
     return {
       statusCode: 405,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ error: 'Solo POST ammesso' }),
+      headers: corsHeaders,
+      body: JSON.stringify({ error: 'Metodo non consentito' })
     };
   }
 
-  if (!SUPABASE_URL) console.error('❌ SUPABASE_URL mancante!');
-  if (!SUPABASE_SERVICE_KEY) console.error('❌ SUPABASE_SERVICE_ROLE_KEY mancante!');
-  if (!ELEVENLABS_API_KEY) console.error('❌ ELEVENLABS_API_KEY mancante!');
-
-  let text, poesia_id;
-  try {
-    ({ text, poesia_id } = JSON.parse(event.body || '{}'));
-    console.log('🟢 text:', text);
-    console.log('🟢 poesia_id:', poesia_id);
-  } catch (err) {
-    console.error('❌ Errore parsing body:', err);
-    return {
-      statusCode: 400,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ error: 'Body non valido' }),
-    };
-  }
-
-  if (!text || !poesia_id) {
-    console.error('❌ Testo o ID poesia mancante!');
-    return {
-      statusCode: 400,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ error: 'Testo o ID poesia mancante' }),
-    };
-  }
-
-  if (!ELEVENLABS_API_KEY || !SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
-    console.error('❌ Configurazione server incompleta (env missing)');
+  // Verifica variabili d'ambiente
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY || !ELEVENLABS_API_KEY) {
     return {
       statusCode: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ error: 'Configurazione server incompleta (env missing)' }),
+      headers: corsHeaders,
+      body: JSON.stringify({ error: 'Configurazione server incompleta' })
+    };
+  }
+
+  // Parsing del body
+  let text, poesia_id;
+  try {
+    const body = JSON.parse(event.body);
+    text = body.text;
+    poesia_id = body.poesia_id;
+    
+    if (!text || !poesia_id) {
+      throw new Error('Dati mancanti');
+    }
+  } catch (err) {
+    return {
+      statusCode: 400,
+      headers: corsHeaders,
+      body: JSON.stringify({ error: 'Richiesta malformata' })
     };
   }
 
   try {
-    // 1. Richiesta TTS a ElevenLabs
-    console.log('🟡 Invio richiesta TTS a ElevenLabs...');
+    // 1. Generazione audio con ElevenLabs
+    console.log('[Audio Generation] Invio richiesta a ElevenLabs');
     const ttsResponse = await fetch(
-      `https://api.elevenlabs.io/v1/text-to-speech/${VOICE_ID}/stream`,
+      `https://api.elevenlabs.io/v1/text-to-speech/${VOICE_ID}`,
       {
         method: 'POST',
         headers: {
           'xi-api-key': ELEVENLABS_API_KEY,
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'accept': 'audio/mpeg'
         },
         body: JSON.stringify({
           text: text,
@@ -102,83 +90,58 @@ exports.handler = async function(event, context) {
     );
 
     if (!ttsResponse.ok) {
-      const errorText = await ttsResponse.text();
-      console.error('❌ Errore ElevenLabs:', errorText);
-      return {
-        statusCode: ttsResponse.status,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ error: 'Errore dal servizio vocale', details: errorText }),
-      };
+      const error = await ttsResponse.text();
+      throw new Error(`Errore ElevenLabs: ${error}`);
     }
-    console.log('🟢 ElevenLabs risposta OK');
 
-    const audioBuffer = Buffer.from(await ttsResponse.arrayBuffer());
-    console.log('🟢 Audio buffer generato, lunghezza:', audioBuffer.length);
+    // 2. Conversione in buffer
+    const audioBuffer = await ttsResponse.arrayBuffer();
+    console.log('[Audio Generation] Audio generato con successo');
 
-    // 2. Carica su Supabase Storage
+    // 3. Upload su Supabase Storage
     const fileName = `poesia-${poesia_id}-${Date.now()}.mp3`;
-    console.log('🟡 Upload audio su Supabase:', fileName);
-
-    const { error: uploadError } = await supabase
-      .storage
+    const { error: uploadError } = await supabase.storage
       .from('poetry-audio')
-      .upload(fileName, audioBuffer, {
+      .upload(fileName, Buffer.from(audioBuffer), {
         contentType: 'audio/mpeg',
         upsert: true
       });
 
-    if (uploadError) {
-      console.error('❌ Errore upload Supabase:', uploadError.message);
-      return {
-        statusCode: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ error: 'Upload audio fallito', details: uploadError.message }),
-      };
-    }
+    if (uploadError) throw uploadError;
 
-    // 3. Ottieni URL pubblico del file caricato
-    const { data: { publicUrl }, error: urlError } = supabase
-      .storage
+    // 4. Recupero URL pubblico
+    const { data: { publicUrl } } = supabase.storage
       .from('poetry-audio')
       .getPublicUrl(fileName);
 
-    console.log('🟢 Public URL generato:', publicUrl);
-
-    if (urlError || !publicUrl) {
-      console.error('❌ Errore publicUrl Supabase:', urlError?.message);
-      return {
-        statusCode: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ error: 'URL pubblico non trovato', details: urlError?.message }),
-      };
-    }
-
-    // 4. Aggiorna la tabella poesie
-    const { error: updateError } = await supabase
+    // 5. Aggiornamento record poesia
+    const { error: dbError } = await supabase
       .from('poesie')
-      .update({ audio_url: publicUrl, audio_generated: true })
+      .update({ 
+        audio_url: publicUrl,
+        audio_generated: true,
+        audio_generated_at: new Date().toISOString()
+      })
       .eq('id', poesia_id);
 
-    if (updateError) {
-      console.error('❌ Errore update DB:', updateError.message);
-    } else {
-      console.log('🟢 Aggiornamento DB avvenuto con successo');
-    }
+    if (dbError) throw dbError;
 
-    // Successo finale!
-    console.log('🟢 Funzione completata con successo!');
+    console.log('[Audio Generation] Processo completato con successo');
     return {
       statusCode: 200,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ audio_url: publicUrl }),
+      headers: corsHeaders,
+      body: JSON.stringify({ audio_url: publicUrl })
     };
 
   } catch (error) {
-    console.error('❌ Errore generale:', error);
+    console.error('[Audio Generation] Errore:', error.message);
     return {
       statusCode: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ error: 'Errore interno del server', details: error.message }),
+      headers: corsHeaders,
+      body: JSON.stringify({ 
+        error: 'Errore nella generazione audio',
+        details: error.message 
+      })
     };
   }
 };
