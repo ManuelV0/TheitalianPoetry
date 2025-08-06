@@ -1,5 +1,3 @@
-// netlify/functions/genera-audio.js
-
 const { createClient } = require('@supabase/supabase-js');
 const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fetch(...args));
 
@@ -14,7 +12,23 @@ const supabase = createClient(
   SUPABASE_SERVICE_KEY
 );
 
+// ---- CORS HEADER ---
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*', // oppure 'https://theitalianpoetryproject.com'
+  'Access-Control-Allow-Headers': 'Content-Type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS'
+};
+
 exports.handler = async function(event, context) {
+  // --- CORS: gestisci preflight OPTIONS subito! ---
+  if (event.httpMethod === 'OPTIONS') {
+    return {
+      statusCode: 200,
+      headers: corsHeaders,
+      body: ''
+    };
+  }
+
   console.log('🟠 [genera-audio] Function CALLED!');
   console.log('🟡 Method:', event.httpMethod);
   console.log('🟡 Headers:', event.headers);
@@ -24,7 +38,7 @@ exports.handler = async function(event, context) {
     console.log('🔴 Solo POST ammesso!');
     return {
       statusCode: 405,
-      headers: { 'Content-Type': 'application/json' },
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       body: JSON.stringify({ error: 'Solo POST ammesso' }),
     };
   }
@@ -42,7 +56,7 @@ exports.handler = async function(event, context) {
     console.error('❌ Errore parsing body:', err);
     return {
       statusCode: 400,
-      headers: { 'Content-Type': 'application/json' },
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       body: JSON.stringify({ error: 'Body non valido' }),
     };
   }
@@ -51,7 +65,7 @@ exports.handler = async function(event, context) {
     console.error('❌ Testo o ID poesia mancante!');
     return {
       statusCode: 400,
-      headers: { 'Content-Type': 'application/json' },
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       body: JSON.stringify({ error: 'Testo o ID poesia mancante' }),
     };
   }
@@ -60,7 +74,7 @@ exports.handler = async function(event, context) {
     console.error('❌ Configurazione server incompleta (env missing)');
     return {
       statusCode: 500,
-      headers: { 'Content-Type': 'application/json' },
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       body: JSON.stringify({ error: 'Configurazione server incompleta (env missing)' }),
     };
   }
@@ -92,7 +106,7 @@ exports.handler = async function(event, context) {
       console.error('❌ Errore ElevenLabs:', errorText);
       return {
         statusCode: ttsResponse.status,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         body: JSON.stringify({ error: 'Errore dal servizio vocale', details: errorText }),
       };
     }
@@ -117,7 +131,7 @@ exports.handler = async function(event, context) {
       console.error('❌ Errore upload Supabase:', uploadError.message);
       return {
         statusCode: 500,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         body: JSON.stringify({ error: 'Upload audio fallito', details: uploadError.message }),
       };
     }
@@ -134,7 +148,7 @@ exports.handler = async function(event, context) {
       console.error('❌ Errore publicUrl Supabase:', urlError?.message);
       return {
         statusCode: 500,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         body: JSON.stringify({ error: 'URL pubblico non trovato', details: urlError?.message }),
       };
     }
@@ -155,7 +169,7 @@ exports.handler = async function(event, context) {
     console.log('🟢 Funzione completata con successo!');
     return {
       statusCode: 200,
-      headers: { 'Content-Type': 'application/json' },
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       body: JSON.stringify({ audio_url: publicUrl }),
     };
 
@@ -163,7 +177,7 @@ exports.handler = async function(event, context) {
     console.error('❌ Errore generale:', error);
     return {
       statusCode: 500,
-      headers: { 'Content-Type': 'application/json' },
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       body: JSON.stringify({ error: 'Errore interno del server', details: error.message }),
     };
   }
