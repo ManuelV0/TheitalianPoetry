@@ -185,7 +185,8 @@ const PoetryPage = ({ poesia, onBack }: { poesia: any, onBack: () => void }) => 
         method: 'HEAD'
       });
       return response.ok;
-    } catch {
+    } catch (err) {
+      console.error('[PoetryPage] checkAudioService error', err);
       return false;
     }
   }, []);
@@ -207,7 +208,6 @@ const PoetryPage = ({ poesia, onBack }: { poesia: any, onBack: () => void }) => 
         }
       }
     };
-    
     initWasm();
   }, []);
 
@@ -269,7 +269,7 @@ const PoetryPage = ({ poesia, onBack }: { poesia: any, onBack: () => void }) => 
 
       if (error) throw error;
     } catch (err) {
-      console.error('Generation failed:', err);
+      console.error('[PoetryPage] Generation failed:', err);
       const errorMessage = err instanceof Error ? err.message : 'Errore generazione audio';
       
       if (errorMessage.includes('404')) {
@@ -311,7 +311,7 @@ const PoetryPage = ({ poesia, onBack }: { poesia: any, onBack: () => void }) => 
 
       setAudioBlobUrl(URL.createObjectURL(blob));
     } catch (err) {
-      console.error('Blob fetch failed:', err);
+      console.error('[PoetryPage] Blob fetch failed:', err);
       setAudioError('Errore caricamento audio');
     } finally {
       console.groupEnd();
@@ -322,7 +322,6 @@ const PoetryPage = ({ poesia, onBack }: { poesia: any, onBack: () => void }) => 
   useEffect(() => {
     if (!audioUrl || !isIOSorSafari() || audioBlobUrl) return;
     fetchAudioAsBlob(audioUrl);
-    
     return () => {
       if (audioBlobUrl) URL.revokeObjectURL(audioBlobUrl);
     };
@@ -441,27 +440,38 @@ const App = () => {
   const [globalError, setGlobalError] = useState<string | null>(null);
   const navigate = useNavigate();
 
+  useEffect(() => {
+    console.log("[DEBUG] App widget montata");
+    console.log("[DEBUG] supabase:", supabase);
+    window.onerror = function(message, source, lineno, colno, error) {
+      console.error("[DEBUG][window.onerror]", {message, source, lineno, colno, error});
+    };
+  }, []);
+
   const fetchPoesie = useCallback(async () => {
     console.group('[App] Fetching poems');
     setState(prev => ({ ...prev, loading: true, error: null }));
-    
     try {
+      console.log("[DEBUG] Prima di chiamare supabase.from");
       const { data, error } = await supabase
         .from('poesie')
         .select('id, title, content, author_name, analisi_letteraria, analisi_psicologica, audio_url, created_at')
         .order('created_at', { ascending: false })
         .limit(50);
+      console.log("[DEBUG] Risposta supabase", { data, error });
 
       if (error) throw error;
       setState(prev => ({ ...prev, poesie: data || [], loading: false }));
     } catch (err) {
-      console.error('Fetch error:', err);
+      console.error('[DEBUG] Fetch error:', err);
       setState(prev => ({
         ...prev,
         error: 'Errore nel caricamento',
         loading: false,
         poesie: prev.poesie.length > 0 ? prev.poesie : []
       }));
+      if (err instanceof Error) throw new Error("fetchPoesie: " + err.message);
+      throw err;
     } finally {
       console.groupEnd();
     }
@@ -469,13 +479,14 @@ const App = () => {
 
   useEffect(() => {
     const handleGlobalError = (event: ErrorEvent) => {
-      console.error('Global error:', event.error);
-      setGlobalError("Si è verificato un errore critico");
+      console.error('[DEBUG] Global error:', event.error);
+
+            setGlobalError("Si è verificato un errore critico");
     };
 
     window.addEventListener('error', handleGlobalError);
     fetchPoesie();
-    
+
     const interval = setInterval(fetchPoesie, POLLING_INTERVAL);
     return () => {
       window.removeEventListener('error', handleGlobalError);
@@ -581,3 +592,5 @@ const App = () => {
 };
 
 export default App;
+
+      
