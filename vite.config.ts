@@ -7,16 +7,16 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     lib: {
-      entry: path.resolve(__dirname, 'src/index.tsx'),
-      name: 'MyPoetryApp',
-      formats: ['iife'],
-      fileName: () => 'my-poetry-app.iife.js',
+      entry: path.resolve(__dirname, 'src/index.tsx'), // Punto di ingresso
+      name: 'MyPoetryApp', // Nome globale per IIFE
+      formats: ['iife'],   // Uscita come IIFE (self-executing for browser/widget)
+      fileName: () => 'my-poetry-app.iife.js', // Nome file finale
     },
     rollupOptions: {
       output: {
         globals: {
           react: 'React',
-          'react-dom': 'ReactDOM'
+          'react-dom': 'ReactDOM',
         }
       },
       external: ['react', 'react-dom'],
