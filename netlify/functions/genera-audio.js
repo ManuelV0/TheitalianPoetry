@@ -1,4 +1,3 @@
-
 const { createClient } = require('@supabase/supabase-js');
 const fetch = require('node-fetch');
 
@@ -42,7 +41,6 @@ exports.handler = async (event, context) => {
     const body = JSON.parse(event.body);
     text = body.text;
     poesia_id = body.poesia_id;
-    
     if (!text || !poesia_id) {
       throw new Error('Missing required fields');
     }
@@ -55,9 +53,9 @@ exports.handler = async (event, context) => {
   }
 
   try {
-    // 1. Generazione audio con ElevenLabs
+    // 1. Generazione audio con ElevenLabs (usa /stream!)
     const ttsResponse = await fetch(
-      `https://api.elevenlabs.io/v1/text-to-speech/${VOICE_ID}`,
+      `https://api.elevenlabs.io/v1/text-to-speech/${VOICE_ID}/stream`,
       {
         method: 'POST',
         headers: {
@@ -77,14 +75,15 @@ exports.handler = async (event, context) => {
     );
 
     if (!ttsResponse.ok) {
-      const error = await ttsResponse.json();
-      throw new Error(`ElevenLabs error: ${error.detail || 'Unknown error'}`);
+      let error = null;
+      try { error = await ttsResponse.json(); } catch {}
+      throw new Error(`ElevenLabs error: ${error?.detail || ttsResponse.statusText || 'Unknown error'}`);
     }
 
     // 2. Caricamento su Supabase Storage
     const audioBuffer = await ttsResponse.buffer();
     const fileName = `poesia-${poesia_id}-${Date.now()}.mp3`;
-    
+
     const { error: uploadError } = await supabase.storage
       .from('poetry-audio')
       .upload(fileName, audioBuffer, {
@@ -95,14 +94,20 @@ exports.handler = async (event, context) => {
     if (uploadError) throw uploadError;
 
     // 3. Recupero URL pubblico
-    const { data: { publicUrl } } = supabase.storage
+    const { data, error: urlError } = supabase
+      .storage
       .from('poetry-audio')
       .getPublicUrl(fileName);
+
+    if (urlError || !data?.publicUrl) {
+      throw urlError || new Error("Unable to get public URL from Supabase");
+    }
+    const publicUrl = data.publicUrl;
 
     // 4. Aggiornamento database
     const { error: dbError } = await supabase
       .from('poesie')
-      .update({ 
+      .update({
         audio_url: publicUrl,
         audio_generated: true,
         audio_generated_at: new Date().toISOString()
@@ -122,9 +127,9 @@ exports.handler = async (event, context) => {
     return {
       statusCode: 500,
       headers: corsHeaders,
-      body: JSON.stringify({ 
+      body: JSON.stringify({
         error: 'Internal server error',
-        details: error.message 
+        details: error.message
       })
     };
   }
