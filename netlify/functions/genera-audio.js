@@ -1,34 +1,41 @@
 const { createClient } = require('@supabase/supabase-js');
-const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fetch(...args));
+const fetch = require('node-fetch');
 
-// Configurazione Supabase
+// Configurazione
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY;
 const VOICE_ID = 'uScy1bXtKz8vPzfdFsFw'; // Voce italiana ElevenLabs
+const ALLOWED_ORIGIN = 'https://poetry.theitalianpoetryproject.com';
 
-// Inizializza client Supabase
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
-// Configurazione CORS
+// Configurazione CORS avanzata
 const corsHeaders = {
-  'Access-Control-Allow-Origin': 'https://theitalianpoetryproject.com',
-  'Access-Control-Allow-Headers': 'Content-Type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS'
+  'Access-Control-Allow-Origin': ALLOWED_ORIGIN,
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Max-Age': '86400' // Preflight cache per 24 ore
 };
 
-exports.handler = async (event, context) => {
+exports.handler = async (event) => {
   // Gestione preflight CORS
   if (event.httpMethod === 'OPTIONS') {
     return {
-      statusCode: 200,
+      statusCode: 204,
       headers: corsHeaders,
       body: ''
     };
   }
 
-  // Log iniziale
-  console.log('[Audio Generation] Inizio elaborazione richiesta');
+  // Verifica origine della richiesta
+  const requestOrigin = event.headers.origin || event.headers.Origin;
+  if (requestOrigin && requestOrigin !== ALLOWED_ORIGIN) {
+    return {
+      statusCode: 403,
+      body: JSON.stringify({ error: 'Origin non consentita' })
+    };
+  }
 
   // Verifica metodo HTTP
   if (event.httpMethod !== 'POST') {
@@ -39,23 +46,11 @@ exports.handler = async (event, context) => {
     };
   }
 
-  // Verifica variabili d'ambiente
-  if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY || !ELEVENLABS_API_KEY) {
-    return {
-      statusCode: 500,
-      headers: corsHeaders,
-      body: JSON.stringify({ error: 'Configurazione server incompleta' })
-    };
-  }
-
-  // Parsing del body
-  let text, poesia_id;
+  // Validazione input
+  let payload;
   try {
-    const body = JSON.parse(event.body);
-    text = body.text;
-    poesia_id = body.poesia_id;
-    
-    if (!text || !poesia_id) {
+    payload = JSON.parse(event.body);
+    if (!payload.text || !payload.poesia_id) {
       throw new Error('Dati mancanti');
     }
   } catch (err) {
@@ -68,8 +63,7 @@ exports.handler = async (event, context) => {
 
   try {
     // 1. Generazione audio con ElevenLabs
-    console.log('[Audio Generation] Invio richiesta a ElevenLabs');
-    const ttsResponse = await fetch(
+    const elevenLabsResponse = await fetch(
       `https://api.elevenlabs.io/v1/text-to-speech/${VOICE_ID}`,
       {
         method: 'POST',
@@ -79,67 +73,72 @@ exports.handler = async (event, context) => {
           'accept': 'audio/mpeg'
         },
         body: JSON.stringify({
-          text: text,
+          text: payload.text,
           model_id: 'eleven_multilingual_v2',
           voice_settings: {
-            stability: 0.5,
-            similarity_boost: 0.75
+            stability: 0.7,  // Aumentata stabilità
+            similarity_boost: 0.8
           }
         })
       }
     );
 
-    if (!ttsResponse.ok) {
-      const error = await ttsResponse.text();
-      throw new Error(`Errore ElevenLabs: ${error}`);
+    if (!elevenLabsResponse.ok) {
+      const errorData = await elevenLabsResponse.json();
+      throw new Error(`API ElevenLabs: ${errorData.detail?.message || 'Errore sconosciuto'}`);
     }
 
-    // 2. Conversione in buffer
-    const audioBuffer = await ttsResponse.arrayBuffer();
-    console.log('[Audio Generation] Audio generato con successo');
+    // 2. Upload su Supabase Storage
+    const timestamp = Date.now();
+    const fileName = `audio/${payload.poesia_id}/${timestamp}.mp3`;
+    const audioBuffer = await elevenLabsResponse.buffer();
 
-    // 3. Upload su Supabase Storage
-    const fileName = `poesia-${poesia_id}-${Date.now()}.mp3`;
     const { error: uploadError } = await supabase.storage
       .from('poetry-audio')
-      .upload(fileName, Buffer.from(audioBuffer), {
+      .upload(fileName, audioBuffer, {
         contentType: 'audio/mpeg',
-        upsert: true
+        upsert: false, // Non sovrascrivere file esistenti
+        cacheControl: 'public, max-age=31536000' // Cache per 1 anno
       });
 
     if (uploadError) throw uploadError;
 
-    // 4. Recupero URL pubblico
-    const { data: { publicUrl } } = supabase.storage
+    // 3. Generazione URL firmato (più sicuro di publicUrl)
+    const { data: { signedUrl } } = await supabase.storage
       .from('poetry-audio')
-      .getPublicUrl(fileName);
+      .createSignedUrl(fileName, 3600); // Valido per 1 ora
 
-    // 5. Aggiornamento record poesia
+    // 4. Aggiornamento database
     const { error: dbError } = await supabase
       .from('poesie')
       .update({ 
-        audio_url: publicUrl,
+        audio_url: signedUrl,
         audio_generated: true,
         audio_generated_at: new Date().toISOString()
       })
-      .eq('id', poesia_id);
+      .eq('id', payload.poesia_id);
 
     if (dbError) throw dbError;
 
-    console.log('[Audio Generation] Processo completato con successo');
     return {
       statusCode: 200,
-      headers: corsHeaders,
-      body: JSON.stringify({ audio_url: publicUrl })
+      headers: {
+        ...corsHeaders,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ 
+        audio_url: signedUrl,
+        expires_at: new Date(Date.now() + 3600000).toISOString()
+      })
     };
 
   } catch (error) {
-    console.error('[Audio Generation] Errore:', error.message);
+    console.error('Errore nella generazione audio:', error);
     return {
       statusCode: 500,
       headers: corsHeaders,
       body: JSON.stringify({ 
-        error: 'Errore nella generazione audio',
+        error: 'Errore interno del server',
         details: error.message 
       })
     };
