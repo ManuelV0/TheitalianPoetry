@@ -1,7 +1,9 @@
+
+         
 import React, { useEffect, useState, useCallback } from 'react';
 import { supabase } from './lib/supabaseClient';
 
-// 1. Definizione dei tipi TypeScript
+// Definizione dei tipi TypeScript
 type Poem = {
   id: string;
   title: string;
@@ -10,6 +12,7 @@ type Poem = {
   audio_url?: string | null;
   created_at: string;
   audio_generated?: boolean;
+  audio_generated_at?: string;
 };
 
 type AudioState = {
@@ -18,7 +21,7 @@ type AudioState = {
   error: string | null;
 };
 
-// 2. Error Boundary per gestire gli errori UI
+// Error Boundary per gestire gli errori UI
 class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean }> {
   state = { hasError: false };
 
@@ -28,15 +31,20 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { has
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     console.error("Component Error:", error, errorInfo);
-    // Invia l'errore a un servizio di monitoring
+    // Qui puoi inviare l'errore a un servizio di monitoring come Sentry
   }
 
   render() {
     if (this.state.hasError) {
       return (
         <div className="error-boundary">
-          <h3>Errore nel componente</h3>
-          <button onClick={() => window.location.reload()}>Ricarica</button>
+          <h3>Qualcosa è andato storto</h3>
+          <button 
+            onClick={() => window.location.reload()}
+            className="reload-button"
+          >
+            Ricarica la pagina
+          </button>
         </div>
       );
     }
@@ -44,7 +52,7 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { has
   }
 }
 
-// 3. Componente per la singola poesia
+// Componente per la singola poesia
 const PoetryWidget = ({ poem }: { poem: Poem }) => {
   const [expanded, setExpanded] = useState(false);
   const [audioState, setAudioState] = useState<AudioState>({
@@ -57,8 +65,6 @@ const PoetryWidget = ({ poem }: { poem: Poem }) => {
     setAudioState(prev => ({ ...prev, loading: true, error: null }));
     
     try {
-      if (audioState.url) return;
-
       const API_ENDPOINT = 'https://poetry.theitalianpoetryproject.com/.netlify/functions/genera-audio';
       
       const response = await fetch(API_ENDPOINT, {
@@ -107,14 +113,23 @@ const PoetryWidget = ({ poem }: { poem: Poem }) => {
     } finally {
       setAudioState(prev => ({ ...prev, loading: false }));
     }
-  }, [poem.id, poem.content, audioState.url]);
+  }, [poem.id, poem.content]);
 
   return (
-    <div className="poetry-widget">
-      <div className="widget-header" onClick={() => setExpanded(!expanded)}>
-        <div>
+    <div className={`poetry-widget ${expanded ? 'expanded' : ''}`}>
+      <div 
+        className="widget-header"
+        onClick={() => setExpanded(!expanded)}
+        aria-expanded={expanded}
+      >
+        <div className="header-content">
           <h3>{poem.title || 'Senza titolo'}</h3>
           <p className="author">{poem.author_name || 'Anonimo'}</p>
+          {poem.audio_generated_at && (
+            <span className="audio-date">
+              Generato il: {new Date(poem.audio_generated_at).toLocaleDateString()}
+            </span>
+          )}
         </div>
         <span className="toggle-icon">{expanded ? '▲' : '▼'}</span>
       </div>
@@ -126,26 +141,42 @@ const PoetryWidget = ({ poem }: { poem: Poem }) => {
           <div className="audio-section">
             {audioState.error && (
               <div className="error-message">
-                <span>Errore: {audioState.error}</span>
-                <button className="retry-button" onClick={generateAudio}>
+                <span>⚠️ {audioState.error}</span>
+                <button 
+                  className="retry-button"
+                  onClick={generateAudio}
+                >
                   Riprova
                 </button>
               </div>
             )}
 
             {audioState.url ? (
-              <audio controls className="audio-player">
-                <source src={audioState.url} type="audio/mpeg" />
-                Il tuo browser non supporta l'elemento audio
-              </audio>
+              <div className="audio-player-container">
+                <audio controls className="audio-player">
+                  <source src={audioState.url} type="audio/mpeg" />
+                  Il tuo browser non supporta l'elemento audio
+                </audio>
+                <a 
+                  href={audioState.url} 
+                  download={`${poem.title.replace(/ /g, '_')}.mp3`}
+                  className="download-button"
+                >
+                  Scarica audio
+                </a>
+              </div>
             ) : (
               <button
                 className={`generate-button ${audioState.loading ? 'loading' : ''}`}
                 onClick={generateAudio}
                 disabled={audioState.loading}
+                aria-busy={audioState.loading}
               >
                 {audioState.loading ? (
-                  <span className="loading-spinner"></span>
+                  <>
+                    <span className="loading-spinner"></span>
+                    Generazione in corso...
+                  </>
                 ) : (
                   '🎙️ Genera audio'
                 )}
@@ -158,7 +189,7 @@ const PoetryWidget = ({ poem }: { poem: Poem }) => {
   );
 };
 
-// 4. Componente principale
+// Componente principale
 const App = () => {
   const [state, setState] = useState<{
     poems: Poem[];
@@ -178,7 +209,7 @@ const App = () => {
       
       const { data, error } = await supabase
         .from('poesie')
-        .select('id, title, content, author_name, audio_url, created_at, audio_generated')
+        .select('id, title, content, author_name, audio_url, created_at, audio_generated, audio_generated_at')
         .order('created_at', { ascending: false })
         .limit(50);
 
@@ -199,7 +230,7 @@ const App = () => {
 
   useEffect(() => {
     fetchPoems();
-    const interval = setInterval(fetchPoems, 30000);
+    const interval = setInterval(fetchPoems, 30000); // Aggiorna ogni 30 secondi
     return () => clearInterval(interval);
   }, [fetchPoems]);
 
@@ -220,7 +251,17 @@ const App = () => {
             onChange={(e) => setState(prev => ({ ...prev, search: e.target.value }))}
             placeholder="Cerca poesie..."
             className="search-input"
+            aria-label="Cerca poesie"
           />
+          {state.search && (
+            <button
+              className="clear-search"
+              onClick={() => setState(prev => ({ ...prev, search: '' }))}
+              aria-label="Pulisci ricerca"
+            >
+              ×
+            </button>
+          )}
         </div>
       </header>
 
@@ -228,7 +269,10 @@ const App = () => {
         {state.error && (
           <div className="error-alert">
             <span>{state.error}</span>
-            <button className="retry-button" onClick={fetchPoems}>
+            <button 
+              className="retry-button"
+              onClick={fetchPoems}
+            >
               Riprova
             </button>
           </div>
@@ -249,7 +293,11 @@ const App = () => {
           </div>
         ) : (
           <div className="empty-state">
-            {state.search ? 'Nessuna poesia trovata' : 'Nessuna poesia disponibile'}
+            {state.search ? (
+              <p>Nessuna poesia trovata per "{state.search}"</p>
+            ) : (
+              <p>Nessuna poesia disponibile al momento</p>
+            )}
           </div>
         )}
       </main>
