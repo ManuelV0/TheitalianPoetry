@@ -1,3 +1,4 @@
+
 // netlify/functions/genera-audio.js
 
 const { createClient } = require('@supabase/supabase-js');
@@ -18,7 +19,6 @@ const supabase = createClient(
 const ALLOWED_ORIGINS = [
   'https://poetry.theitalianpoetryproject.com',
   'https://widget.theitalianpoetryproject.com',
-  'https://widget.theitalianpoetryproject.com/my-poetry-app.iife.js',
   'https://www.theitalianpoetryproject.com'
 ];
 
