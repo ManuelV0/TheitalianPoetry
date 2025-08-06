@@ -5,18 +5,31 @@ const fetch = require('node-fetch');
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY;
-const VOICE_ID = 'uScy1bXtKz8vPzfdFsFw'; // Voce italiana ElevenLabs
+const VOICE_ID = 'uScy1bXtKz8vPzfdFsFw';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': 'https://www.theitalianpoetryproject.com',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Max-Age': '86400'
-};
+// Lista di origini permesse (aggiungi qui se ne hai altre!)
+const ALLOWED_ORIGINS = [
+  'https://www.theitalianpoetryproject.com',
+  'https://poetry.theitalianpoetryproject.com',
+  'https://widget.theitalianpoetryproject.com'
+];
+
+function getCorsHeaders(origin) {
+  // Se l'origin è nella lista, consenti, altrimenti nega (puoi cambiare default se vuoi)
+  return {
+    'Access-Control-Allow-Origin': ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0],
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Max-Age': '86400'
+  };
+}
 
 exports.handler = async (event, context) => {
+  const origin = event.headers.origin || '';
+  const corsHeaders = getCorsHeaders(origin);
+
   // Gestione preflight CORS
   if (event.httpMethod === 'OPTIONS') {
     return {
