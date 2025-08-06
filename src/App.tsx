@@ -1,596 +1,455 @@
-import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { supabase } from './lib/supabaseClient';
-import { useNavigate } from 'react-router-dom';
-import { FaArrowLeft, FaPlay, FaPause, FaStop, FaDownload, FaExclamationTriangle, FaSyncAlt } from 'react-icons/fa';
+import React, { useEffect, useState } from 'react'
+import { supabase } from './lib/supabaseClient'
 
-// Configurazioni
-const NETLIFY_AUDIO_FUNCTION = '/.netlify/functions/genera-audio';
-const LOCAL_DEV_API = 'http://localhost:8888/.netlify/functions/genera-audio';
-const MAX_RETRIES = 3;
-const RETRY_DELAY = 1000;
-const POLLING_INTERVAL = 300000;
+// BOX SINGOLA POESIA (identico alla tua web app)
+function PoesiaBox({ poesia }: { poesia: any }) {
+  const [aperta, setAperta] = useState(false)
+  const [poesiaData, setPoesiaData] = useState(poesia)
+  const [loadingAudio, setLoadingAudio] = useState(false)
+  const [audioUrl, setAudioUrl] = useState<string | null>(poesia.audio_url || null)
 
-// Utility
-function isIOSorSafari() {
-  if (typeof navigator === "undefined") return false;
-  return /iP(ad|hone|od)/.test(navigator.userAgent) ||
-    (/Safari/i.test(navigator.userAgent) && !/Chrome/i.test(navigator.userAgent));
+  // Parse analisi se arriva come stringa
+  let analisiL = poesiaData.analisi_letteraria
+  let analisiP = poesiaData.analisi_psicologica
+  try {
+    if (typeof analisiL === 'string') analisiL = JSON.parse(analisiL)
+    if (typeof analisiP === 'string') analisiP = JSON.parse(analisiP)
+  } catch {}
+  const tonoEmotivo = analisiP?.tono_emotivo || ''
+
+  // Handler per generare l'audio (Netlify Functions)
+  const handleGeneraAudio = async (e: React.MouseEvent) => {
+    e.stopPropagation()
+    setLoadingAudio(true)
+    try {
+      // NON rigenerare se già presente
+      if (audioUrl) {
+        setLoadingAudio(false)
+        return
+      }
+      const res = await fetch('/.netlify/functions/genera-audio', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text: poesiaData.content,
+          poesia_id: poesiaData.id
+        })
+      })
+      const json = await res.json()
+      // Supporto sia audio_url (url fisico) che audioUrl (base64)
+      if (json.audio_url) {
+        setAudioUrl(json.audio_url)
+        setPoesiaData((prev: any) => ({ ...prev, audio_url: json.audio_url }))
+        // Aggiorna anche in Supabase frontend (opzionale, per UX reattiva)
+        await supabase
+          .from('poesie')
+          .update({ audio_url: json.audio_url, audio_generated: true })
+          .eq('id', poesiaData.id)
+      } else if (json.audioUrl) {
+        setAudioUrl(json.audioUrl)
+      }
+    } catch (err) {
+      alert('Errore nella generazione audio.')
+    }
+    setLoadingAudio(false)
+  }
+
+  return (
+    <div className="w-full border rounded-lg p-6 shadow-lg mb-6 bg-white transition-all hover:shadow-xl font-sans">
+      {/* Titolo, autore, tono */}
+      <div
+        className="cursor-pointer flex justify-between items-start"
+        onClick={() => setAperta(v => !v)}
+      >
+        <div className="flex-1 pr-4">
+          <h2 className="text-xl font-extrabold text-green-700 font-montserrat">{poesia.title || 'Senza titolo'}</h2>
+          <p className="text-sm italic text-gray-500 mb-2 font-open-sans">{poesia.author_name || 'Anonimo'}</p>
+          {tonoEmotivo && (
+            <span className="inline-block mb-2 bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-bold">
+              Tono: {tonoEmotivo}
+            </span>
+          )}
+          <p className={`text-gray-900 text-base leading-relaxed font-open-sans ${aperta ? '' : 'line-clamp-3'}`}>
+            {poesia.content}
+          </p>
+        </div>
+        <span className="text-green-600 font-semibold text-sm ml-4 select-none self-start mt-1 font-open-sans">
+          {aperta ? '▲ Chiudi' : '▼ Apri'}
+        </span>
+      </div>
+
+      {/* Player audio o bottone genera */}
+      {aperta && (
+        <div className="mt-6">
+          {audioUrl ? (
+            <audio controls className="my-2 w-full">
+              <source src={audioUrl} type="audio/mpeg" />
+              Il tuo browser non supporta l'audio.
+            </audio>
+          ) : (
+            <button
+              className="mt-2 bg-green-600 text-white px-4 py-1 rounded shadow font-semibold hover:bg-green-700 transition"
+              onClick={handleGeneraAudio}
+              disabled={loadingAudio}
+            >
+              {loadingAudio ? 'Generazione in corso...' : '🎙️ Genera voce AI'}
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Analisi */}
+      {aperta && (
+        <div className="mt-8 space-y-6">
+          {/* Analisi Letteraria */}
+          <section className="bg-green-50 p-5 rounded shadow-inner border border-green-300 font-open-sans">
+            <h3 className="font-bold text-green-800 mb-3 border-b border-green-400 pb-2 text-lg font-montserrat">
+              Analisi Letteraria
+            </h3>
+            {analisiL ? (
+              <>
+                <p className="mb-1">
+                  <strong>Stile letterario:</strong>{' '}
+                  <span className="text-green-700">{analisiL.stile_letterario || 'N/A'}</span>
+                </p>
+                <p className="mb-1 font-semibold">Temi:</p>
+                <ul className="list-disc list-inside ml-6 text-green-600 mb-3">
+                  {(analisiL.temi || []).map((tema: string, i: number) => (
+                    <li key={i}>{tema}</li>
+                  ))}
+                </ul>
+                <p className="mb-1">
+                  <strong>Struttura:</strong>{' '}
+                  <span className="text-green-700">{analisiL.struttura || 'N/A'}</span>
+                </p>
+                <p>
+                  <strong>Riferimenti culturali:</strong>{' '}
+                  <span className="text-green-700">{analisiL.riferimenti_culturali || 'N/A'}</span>
+                </p>
+              </>
+            ) : (
+              <p className="italic text-green-400">Nessuna analisi letteraria disponibile.</p>
+            )}
+          </section>
+
+          {/* Analisi Psicologica */}
+          <section className="bg-indigo-50 p-5 rounded shadow-inner border border-indigo-300 font-open-sans">
+            <h3 className="font-bold text-indigo-800 mb-3 border-b border-indigo-400 pb-2 text-lg font-montserrat">
+              Analisi Psicologica
+            </h3>
+            {analisiP ? (
+              <>
+                <p className="mb-1 font-semibold">Emozioni:</p>
+                <ul className="list-disc list-inside ml-6 text-indigo-600 mb-3">
+                  {(analisiP.emozioni || []).map((emozione: string, i: number) => (
+                    <li key={i}>{emozione}</li>
+                  ))}
+                </ul>
+                <p className="mb-1">
+                  <strong>Stato interno:</strong>{' '}
+                  <span className="text-indigo-700">{analisiP.stato_interno || 'N/A'}</span>
+                </p>
+                <p>
+                  <strong>Visione del mondo:</strong>{' '}
+                  <span className="text-indigo-700">{analisiP.visione_del_mondo || 'N/A'}</span>
+                </p>
+              </>
+            ) : (
+              <p className="italic text-indigo-400">Nessuna analisi psicologica disponibile.</p>
+            )}
+          </section>
+        </div>
+      )}
+    </div>
+  )
 }
 
-const AudioPlayerWithHighlight = ({ 
-  content, 
-  audioUrl,
-  onClose,
-  onError
-}: {
-  content: string,
-  audioUrl: string,
-  onClose: () => void,
-  onError: (message: string) => void
-}) => {
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [currentWordIndex, setCurrentWordIndex] = useState(-1);
-  const [progress, setProgress] = useState(0);
-  const [playbackRate, setPlaybackRate] = useState(1);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const words = content.split(/(\s+)/).filter(word => word.trim().length > 0);
-  const wordRefs = useRef<(HTMLSpanElement | null)[]>([]);
-  const containerRef = useRef<HTMLDivElement | null>(null);
+// COMPONENTE PRINCIPALE DEL WIDGET (usala nel mount del widget!)
+export default function App() {
+  const [poesie, setPoesie] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [search, setSearch] = useState('')
+
+  const fetchPoesie = async () => {
+    const { data, error } = await supabase
+      .from('poesie')
+      .select('id, title, content, author_name, analisi_letteraria, analisi_psicologica, created_at, audio_url')
+      .order('created_at', { ascending: false })
+
+    if (!error) setPoesie(data || [])
+    setLoading(false)
+  }
 
   useEffect(() => {
-    console.log('[AudioPlayer] Initializing audio with URL:', audioUrl);
-    const audio = new Audio(audioUrl);
-    audio.preload = 'metadata';
-    audioRef.current = audio;
+    fetchPoesie()
+    const interval = setInterval(fetchPoesie, 15000)
+    return () => clearInterval(interval)
+  }, [])
 
-    const handleTimeUpdate = () => {
-      if (!audioRef.current) return;
-      const currentTime = audioRef.current.currentTime;
-      const duration = audioRef.current.duration || 1;
-      const newProgress = (currentTime / duration) || 0;
-      setProgress(newProgress);
-      const wordIndex = Math.floor(newProgress * words.length);
-      setCurrentWordIndex(Math.min(wordIndex, words.length - 1));
-      
-      if (wordRefs.current[wordIndex]) {
-        wordRefs.current[wordIndex]?.scrollIntoView({
-          behavior: 'smooth',
-          block: 'center'
-        });
-      }
-    };
-
-    const handleError = (e: any) => {
-      console.error('[AudioPlayer] Audio error:', e);
-      onError(`Errore riproduzione: ${e.target.error?.message || 'sconosciuto'}`);
-      setIsPlaying(false);
-    };
-
-    audio.addEventListener('timeupdate', handleTimeUpdate);
-    audio.addEventListener('ended', () => {
-      console.log('[AudioPlayer] Playback completed');
-      setIsPlaying(false);
-      setCurrentWordIndex(-1);
-    });
-    audio.addEventListener('error', handleError);
-
-    return () => {
-      console.log('[AudioPlayer] Cleanup');
-      audio.removeEventListener('timeupdate', handleTimeUpdate);
-      audio.removeEventListener('error', handleError);
-      audio.pause();
-      if (audioRef.current?.src.startsWith('blob:')) {
-        URL.revokeObjectURL(audioRef.current.src);
-      }
-    };
-  }, [audioUrl, words.length, onError]);
-
-  const togglePlayback = async () => {
-    if (!audioRef.current) return;
-    try {
-      console.log(`[AudioPlayer] Toggling playback to ${!isPlaying}`);
-      if (isPlaying) {
-        await audioRef.current.pause();
-      } else {
-        await audioRef.current.play();
-      }
-      setIsPlaying(!isPlaying);
-    } catch (err) {
-      console.error('[AudioPlayer] Playback error:', err);
-      onError(`Impossibile avviare: ${err instanceof Error ? err.message : String(err)}`);
-    }
-  };
-
-  const handleStop = () => {
-    console.log('[AudioPlayer] Stopping playback');
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current.currentTime = 0;
-    }
-    setIsPlaying(false);
-    setCurrentWordIndex(-1);
-    setProgress(0);
-  };
-
-  const handleSpeedChange = (speed: number) => {
-    console.log('[AudioPlayer] Changing speed to:', speed);
-    if (audioRef.current) {
-      audioRef.current.playbackRate = speed;
-      setPlaybackRate(speed);
-    }
-  };
+  const poesieFiltrate = poesie.filter(p =>
+    p.title?.toLowerCase().includes(search.toLowerCase()) ||
+    p.author_name?.toLowerCase().includes(search.toLowerCase()) ||
+    p.content?.toLowerCase().includes(search.toLowerCase())
+  )
 
   return (
-    <div className="audio-player-modal" ref={containerRef}>
-      <div className="audio-controls">
-        <button onClick={togglePlayback} className="play-button">
-          {isPlaying ? <FaPause /> : <FaPlay />}
-          {isPlaying ? ' Pausa' : ' Riproduci'}
-        </button>
-        <button onClick={handleStop} className="stop-button">
-          <FaStop /> Stop
-        </button>
-        <div className="speed-controls">
-          <span>Velocità:</span>
-          {[0.5, 0.75, 1, 1.25, 1.5].map(speed => (
-            <button 
-              key={speed} 
-              onClick={() => handleSpeedChange(speed)}
-              className={`speed-button ${playbackRate === speed ? 'active' : ''}`}
-            >
-              {speed}x
-            </button>
-          ))}
-        </div>
-        <div className="progress-bar">
-          <div 
-            className="progress-fill" 
-            style={{ width: `${progress * 100}%` }}
-          />
-        </div>
-        <button onClick={onClose} className="back-button">
-          <FaArrowLeft /> Torna indietro
-        </button>
+    <main className="max-w-lg sm:max-w-3xl mx-auto p-6 bg-gray-50 min-h-screen font-open-sans">
+      <h1 className="text-3xl font-extrabold mb-6 text-center text-green-700 tracking-wide font-montserrat">
+        TheItalianPoetryProject.com
+      </h1>
+
+      <div className="mb-8 poetry-search-bar">
+        <input
+          type="search"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Cerca per titolo, autore o testo..."
+          className="w-full p-4 rounded-lg border border-gray-300 focus:outline-none focus:ring-4 focus:ring-green-500 focus:border-transparent text-gray-700 text-lg"
+          aria-label="Barra di ricerca poesie"
+          autoComplete="off"
+        />
       </div>
-      <div className="content-highlight">
-        {words.map((word, index) => (
-          <span 
-            key={index}
-            ref={el => wordRefs.current[index] = el}
-            className={`word ${currentWordIndex === index ? 'highlight' : ''} ${
-              Math.abs(currentWordIndex - index) < 3 ? 'glow' : ''
-            }`}
-          >
-            {word}
-          </span>
-        ))}
+
+      {loading && <p className="text-center text-gray-500">Caricamento poesie...</p>}
+
+      <div className="poesie-list" style={{maxHeight: "70vh", overflowY: "auto"}}>
+        {poesieFiltrate.length > 0 ? (
+          poesieFiltrate.map(poesia => (
+            <PoesiaBox key={poesia.id} poesia={poesia} />
+          ))
+        ) : (
+          !loading && (
+            <p className="text-center text-gray-400 mt-12 text-lg">Nessuna poesia trovata.</p>
+          )
+        )}
       </div>
-    </div>
-  );
-};
+    </main>
+  )
+}import React, { useEffect, useState } from 'react'
+import { supabase } from './lib/supabaseClient'
 
-const PoetryPage = ({ poesia, onBack }: { poesia: any, onBack: () => void }) => {
-  const [audioUrl, setAudioUrl] = useState(poesia.audio_url || null);
-  const [audioBlobUrl, setAudioBlobUrl] = useState<string | null>(null);
-  const [loadingAudio, setLoadingAudio] = useState(false);
-  const [audioError, setAudioError] = useState<string | null>(null);
-  const [showAudioPlayer, setShowAudioPlayer] = useState(false);
-  const [wasmReady, setWasmReady] = useState(false);
-  const [fallbackAudio, setFallbackAudio] = useState(false);
-  const retryCount = useRef(0);
+// BOX SINGOLA POESIA (identico alla tua web app)
+function PoesiaBox({ poesia }: { poesia: any }) {
+  const [aperta, setAperta] = useState(false)
+  const [poesiaData, setPoesiaData] = useState(poesia)
+  const [loadingAudio, setLoadingAudio] = useState(false)
+  const [audioUrl, setAudioUrl] = useState<string | null>(poesia.audio_url || null)
 
-  const checkAudioService = useCallback(async () => {
+  // Parse analisi se arriva come stringa
+  let analisiL = poesiaData.analisi_letteraria
+  let analisiP = poesiaData.analisi_psicologica
+  try {
+    if (typeof analisiL === 'string') analisiL = JSON.parse(analisiL)
+    if (typeof analisiP === 'string') analisiP = JSON.parse(analisiP)
+  } catch {}
+  const tonoEmotivo = analisiP?.tono_emotivo || ''
+
+  // Handler per generare l'audio (Netlify Functions)
+  const handleGeneraAudio = async (e: React.MouseEvent) => {
+    e.stopPropagation()
+    setLoadingAudio(true)
     try {
-      const response = await fetch(process.env.NODE_ENV === 'development' ? LOCAL_DEV_API : NETLIFY_AUDIO_FUNCTION, {
-        method: 'HEAD'
-      });
-      return response.ok;
-    } catch (err) {
-      console.error('[PoetryPage] checkAudioService error', err);
-      return false;
-    }
-  }, []);
-
-  useEffect(() => {
-    const initWasm = async () => {
-      try {
-        if ((window as any).WasmModule) {
-          await (window as any).WasmModule.ready;
-          setWasmReady(true);
-        }
-      } catch (err) {
-        console.error('WASM initialization error:', err);
-        if (retryCount.current < MAX_RETRIES) {
-          retryCount.current++;
-          setTimeout(initWasm, RETRY_DELAY);
-        } else {
-          setAudioError('Funzionalità audio non disponibili');
-        }
+      // NON rigenerare se già presente
+      if (audioUrl) {
+        setLoadingAudio(false)
+        return
       }
-    };
-    initWasm();
-  }, []);
-
-  const handleGeneraAudio = async () => {
-    if (!wasmReady) {
-      setAudioError('Attendere il caricamento delle funzionalità audio');
-      return;
-    }
-
-    setLoadingAudio(true);
-    setAudioError(null);
-    
-    try {
-      if (audioUrl) return;
-
-      const isServiceAvailable = await checkAudioService();
-      if (!isServiceAvailable) {
-        throw new Error('Servizio audio non disponibile');
-      }
-
-      const API_URL = process.env.NODE_ENV === 'development' 
-        ? LOCAL_DEV_API 
-        : NETLIFY_AUDIO_FUNCTION;
-
-      const response = await fetch(API_URL, {
+      const res = await fetch('/.netlify/functions/genera-audio', {
         method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'X-Request-ID': `poesia-${poesia.id}-${Date.now()}`
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          text: poesia.content,
-          poesia_id: poesia.id,
-          timestamp: new Date().toISOString()
+          text: poesiaData.content,
+          poesia_id: poesiaData.id
         })
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`API Error: ${response.status} - ${errorText.substring(0, 100)}`);
+      })
+      const json = await res.json()
+      // Supporto sia audio_url (url fisico) che audioUrl (base64)
+      if (json.audio_url) {
+        setAudioUrl(json.audio_url)
+        setPoesiaData((prev: any) => ({ ...prev, audio_url: json.audio_url }))
+        // Aggiorna anche in Supabase frontend (opzionale, per UX reattiva)
+        await supabase
+          .from('poesie')
+          .update({ audio_url: json.audio_url, audio_generated: true })
+          .eq('id', poesiaData.id)
+      } else if (json.audioUrl) {
+        setAudioUrl(json.audioUrl)
       }
-
-      const data = await response.json();
-      if (!data.audio_url && !data.audioUrl) {
-        throw new Error('Invalid response: missing audio URL');
-      }
-
-      const finalUrl = data.audio_url || data.audioUrl;
-      setAudioUrl(finalUrl);
-      
-      const { error } = await supabase
-        .from('poesie')
-        .update({ 
-          audio_url: finalUrl, 
-          audio_generated: true,
-          audio_generated_at: new Date().toISOString()
-        })
-        .eq('id', poesia.id);
-
-      if (error) throw error;
     } catch (err) {
-      console.error('[PoetryPage] Generation failed:', err);
-      const errorMessage = err instanceof Error ? err.message : 'Errore generazione audio';
-      
-      if (errorMessage.includes('404')) {
-        setAudioError('Servizio temporaneamente non disponibile');
-      } else {
-        setAudioError(errorMessage);
-      }
-
-      if (retryCount.current >= MAX_RETRIES && !fallbackAudio) {
-        setFallbackAudio(true);
-      }
-    } finally {
-      setLoadingAudio(false);
+      alert('Errore nella generazione audio.')
     }
-  };
-
-  const fetchAudioAsBlob = useCallback(async (url: string) => {
-    console.group('[PoetryPage] Fetching audio blob');
-    setLoadingAudio(true);
-    setAudioError(null);
-    
-    try {
-      const timestampedUrl = `${url}?ts=${Date.now()}`;
-      const response = await fetch(timestampedUrl, {
-        cache: 'no-store',
-        mode: 'cors',
-        headers: { 'Cache-Control': 'no-cache' }
-      });
-
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-      const contentType = response.headers.get('content-type');
-      if (!contentType?.includes('audio/')) {
-        throw new Error(`Expected audio, got ${contentType}`);
-      }
-
-      const blob = await response.blob();
-      if (blob.size === 0) throw new Error('Empty audio blob');
-
-      setAudioBlobUrl(URL.createObjectURL(blob));
-    } catch (err) {
-      console.error('[PoetryPage] Blob fetch failed:', err);
-      setAudioError('Errore caricamento audio');
-    } finally {
-      console.groupEnd();
-      setLoadingAudio(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (!audioUrl || !isIOSorSafari() || audioBlobUrl) return;
-    fetchAudioAsBlob(audioUrl);
-    return () => {
-      if (audioBlobUrl) URL.revokeObjectURL(audioBlobUrl);
-    };
-  }, [audioUrl, audioBlobUrl, fetchAudioAsBlob]);
-
-  const parseAnalysis = (analysis: any) => {
-    try {
-      return typeof analysis === 'string' ? JSON.parse(analysis) : analysis;
-    } catch (e) {
-      console.warn('[PoetryPage] Failed to parse analysis:', e);
-      return null;
-    }
-  };
-
-  const analisiL = parseAnalysis(poesia.analisi_letteraria);
-  const analisiP = parseAnalysis(poesia.analisi_psicologica);
+    setLoadingAudio(false)
+  }
 
   return (
-    <div className="poetry-page">
-      <button onClick={onBack} className="back-button">
-        <FaArrowLeft /> Torna all'elenco
-      </button>
-      <div className="poetry-header">
-        <h1>{poesia.title}</h1>
-        <p className="author">{poesia.author_name || "Anonimo"}</p>
-      </div>
-      {showAudioPlayer && audioUrl ? (
-        <AudioPlayerWithHighlight 
-          content={poesia.content} 
-          audioUrl={isIOSorSafari() && audioBlobUrl ? audioBlobUrl : audioUrl}
-          onClose={() => setShowAudioPlayer(false)}
-          onError={setAudioError}
-        />
-      ) : (
-        <div className="poetry-content">
-          <div className="poetry-text">
-            <pre>{poesia.content}</pre>
-          </div>
-          <div className="audio-section">
-            {audioError ? (
-              <div className="audio-error-notice">
-                <FaExclamationTriangle />
-                <p>{audioError}</p>
-                <button 
-                  onClick={handleGeneraAudio}
-                  className="retry-button"
-                  disabled={loadingAudio}
-                >
-                  <FaSyncAlt /> {loadingAudio ? 'Riprova...' : 'Riprova'}
-                </button>
-              </div>
-            ) : audioUrl ? (
-              <div className="audio-options">
-                <button 
-                  onClick={() => setShowAudioPlayer(true)}
-                  className="listen-button"
-                >
-                  <FaPlay /> Ascolta con highlight
-                </button>
-                <a
-                  href={audioUrl}
-                  download={`${poesia.title.replace(/ /g, '_')}.mp3`}
-                  className="audio-download-link"
-                >
-                  <FaDownload /> Scarica audio
-                </a>
-              </div>
-            ) : (
-              <button
-                className="generate-audio-btn"
-                onClick={handleGeneraAudio}
-                disabled={loadingAudio}
-              >
-                {loadingAudio ? "Generazione in corso..." : "🎙️ Genera voce AI"}
-              </button>
-            )}
-          </div>
-          <div className="analysis-sections">
-            <section className="analysis-section">
-              <h2>Analisi Letteraria</h2>
-              {analisiL ? (
-                <div>
-                  {analisiL.stile_letterario && <p><b>Stile:</b> {analisiL.stile_letterario}</p>}
-                  {analisiL.temi && <p><b>Temi:</b> {Array.isArray(analisiL.temi) ? analisiL.temi.join(", ") : analisiL.temi}</p>}
-                  {analisiL.struttura && <p><b>Struttura:</b> {analisiL.struttura}</p>}
-                  {analisiL.riferimenti_culturali && <p><b>Riferimenti:</b> {analisiL.riferimenti_culturali}</p>}
-                </div>
-              ) : <p className="no-analysis">Nessuna analisi disponibile</p>}
-            </section>
-            <section className="analysis-section">
-              <h2>Analisi Psicologica</h2>
-              {analisiP ? (
-                <div>
-                  {analisiP.emozioni && <p><b>Emozioni:</b> {Array.isArray(analisiP.emozioni) ? analisiP.emozioni.join(", ") : analisiP.emozioni}</p>}
-                  {analisiP.stato_interno && <p><b>Stato interno:</b> {analisiP.stato_interno}</p>}
-                  {analisiP.visione_del_mondo && <p><b>Visione:</b> {analisiP.visione_del_mondo}</p>}
-                </div>
-              ) : <p className="no-analysis">Nessuna analisi disponibile</p>}
-            </section>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-};
-
-const App = () => {
-  const [state, setState] = useState({
-    poesie: [] as any[],
-    loading: true,
-    error: null as string | null,
-    search: '',
-    selectedPoesia: null as any | null
-  });
-
-  const [globalError, setGlobalError] = useState<string | null>(null);
-  const navigate = useNavigate();
-
-  useEffect(() => {
-    console.log("[DEBUG] App widget montata");
-    console.log("[DEBUG] supabase:", supabase);
-    window.onerror = function(message, source, lineno, colno, error) {
-      console.error("[DEBUG][window.onerror]", {message, source, lineno, colno, error});
-    };
-  }, []);
-
-  const fetchPoesie = useCallback(async () => {
-    console.group('[App] Fetching poems');
-    setState(prev => ({ ...prev, loading: true, error: null }));
-    try {
-      console.log("[DEBUG] Prima di chiamare supabase.from");
-      const { data, error } = await supabase
-        .from('poesie')
-        .select('id, title, content, author_name, analisi_letteraria, analisi_psicologica, audio_url, created_at')
-        .order('created_at', { ascending: false })
-        .limit(50);
-      console.log("[DEBUG] Risposta supabase", { data, error });
-
-      if (error) throw error;
-      setState(prev => ({ ...prev, poesie: data || [], loading: false }));
-    } catch (err) {
-      console.error('[DEBUG] Fetch error:', err);
-      setState(prev => ({
-        ...prev,
-        error: 'Errore nel caricamento',
-        loading: false,
-        poesie: prev.poesie.length > 0 ? prev.poesie : []
-      }));
-      if (err instanceof Error) throw new Error("fetchPoesie: " + err.message);
-      throw err;
-    } finally {
-      console.groupEnd();
-    }
-  }, []);
-
-  useEffect(() => {
-    const handleGlobalError = (event: ErrorEvent) => {
-      console.error('[DEBUG] Global error:', event.error);
-
-            setGlobalError("Si è verificato un errore critico");
-    };
-
-    window.addEventListener('error', handleGlobalError);
-    fetchPoesie();
-
-    const interval = setInterval(fetchPoesie, POLLING_INTERVAL);
-    return () => {
-      window.removeEventListener('error', handleGlobalError);
-      clearInterval(interval);
-    };
-  }, [fetchPoesie]);
-
-  const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setState(prev => ({ ...prev, search: e.target.value }));
-  };
-
-  const handleSelectPoesia = (poesia: any) => {
-    setState(prev => ({ ...prev, selectedPoesia: poesia }));
-  };
-
-  const handleBackToList = () => {
-    setState(prev => ({ ...prev, selectedPoesia: null }));
-  };
-
-  const poesieFiltrate = state.poesie.filter(p =>
-    p.title?.toLowerCase().includes(state.search.toLowerCase()) ||
-    p.author_name?.toLowerCase().includes(state.search.toLowerCase()) ||
-    p.content?.toLowerCase().includes(state.search.toLowerCase())
-  );
-
-  return (
-    <div className="app-container">
-      {globalError && (
-        <div className="global-error-overlay">
-          <div className="global-error-message">
-            <h3>Errore Critico</h3>
-            <p>{globalError}</p>
-            <button onClick={() => window.location.reload()}>
-              Ricarica l'applicazione
-            </button>
-          </div>
-        </div>
-      )}
-
-      {state.selectedPoesia ? (
-        <PoetryPage 
-          poesia={state.selectedPoesia} 
-          onBack={handleBackToList}
-        />
-      ) : (
-        <>
-          <header className="app-header">
-            <div className="search-bar">
-              <input
-                type="search"
-                value={state.search}
-                onChange={handleSearch}
-                placeholder="Cerca poesie..."
-                aria-label="Cerca poesie"
-              />
-              {state.search && (
-                <button
-                  className="clear-search"
-                  onClick={() => setState(prev => ({ ...prev, search: "" }))}
-                  aria-label="Pulisci ricerca"
-                >
-                  ×
-                </button>
-              )}
-            </div>
-          </header>
-          
-          {state.error && (
-            <div className="error-message">
-              {state.error}
-              <button onClick={fetchPoesie}>Riprova</button>
-            </div>
+    <div className="w-full border rounded-lg p-6 shadow-lg mb-6 bg-white transition-all hover:shadow-xl font-sans">
+      {/* Titolo, autore, tono */}
+      <div
+        className="cursor-pointer flex justify-between items-start"
+        onClick={() => setAperta(v => !v)}
+      >
+        <div className="flex-1 pr-4">
+          <h2 className="text-xl font-extrabold text-green-700 font-montserrat">{poesia.title || 'Senza titolo'}</h2>
+          <p className="text-sm italic text-gray-500 mb-2 font-open-sans">{poesia.author_name || 'Anonimo'}</p>
+          {tonoEmotivo && (
+            <span className="inline-block mb-2 bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-bold">
+              Tono: {tonoEmotivo}
+            </span>
           )}
+          <p className={`text-gray-900 text-base leading-relaxed font-open-sans ${aperta ? '' : 'line-clamp-3'}`}>
+            {poesia.content}
+          </p>
+        </div>
+        <span className="text-green-600 font-semibold text-sm ml-4 select-none self-start mt-1 font-open-sans">
+          {aperta ? '▲ Chiudi' : '▼ Apri'}
+        </span>
+      </div>
 
-          <main className="poesie-list">
-            {state.loading ? (
-              <div className="loader">Caricamento...</div>
-            ) : poesieFiltrate.length > 0 ? (
-              poesieFiltrate.map(poesia => (
-                <div 
-                  key={poesia.id} 
-                  className="poesia-card"
-                  onClick={() => handleSelectPoesia(poesia)}
-                >
-                  <h3>{poesia.title}</h3>
-                  <p className="author">{poesia.author_name || "Anonimo"}</p>
-                  <p className="preview">{poesia.content?.slice(0, 120)}...</p>
-                  {poesia.audio_url && (
-                    <span className="audio-badge">🎧 Audio disponibile</span>
-                  )}
-                </div>
-              ))
+      {/* Player audio o bottone genera */}
+      {aperta && (
+        <div className="mt-6">
+          {audioUrl ? (
+            <audio controls className="my-2 w-full">
+              <source src={audioUrl} type="audio/mpeg" />
+              Il tuo browser non supporta l'audio.
+            </audio>
+          ) : (
+            <button
+              className="mt-2 bg-green-600 text-white px-4 py-1 rounded shadow font-semibold hover:bg-green-700 transition"
+              onClick={handleGeneraAudio}
+              disabled={loadingAudio}
+            >
+              {loadingAudio ? 'Generazione in corso...' : '🎙️ Genera voce AI'}
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Analisi */}
+      {aperta && (
+        <div className="mt-8 space-y-6">
+          {/* Analisi Letteraria */}
+          <section className="bg-green-50 p-5 rounded shadow-inner border border-green-300 font-open-sans">
+            <h3 className="font-bold text-green-800 mb-3 border-b border-green-400 pb-2 text-lg font-montserrat">
+              Analisi Letteraria
+            </h3>
+            {analisiL ? (
+              <>
+                <p className="mb-1">
+                  <strong>Stile letterario:</strong>{' '}
+                  <span className="text-green-700">{analisiL.stile_letterario || 'N/A'}</span>
+                </p>
+                <p className="mb-1 font-semibold">Temi:</p>
+                <ul className="list-disc list-inside ml-6 text-green-600 mb-3">
+                  {(analisiL.temi || []).map((tema: string, i: number) => (
+                    <li key={i}>{tema}</li>
+                  ))}
+                </ul>
+                <p className="mb-1">
+                  <strong>Struttura:</strong>{' '}
+                  <span className="text-green-700">{analisiL.struttura || 'N/A'}</span>
+                </p>
+                <p>
+                  <strong>Riferimenti culturali:</strong>{' '}
+                  <span className="text-green-700">{analisiL.riferimenti_culturali || 'N/A'}</span>
+                </p>
+              </>
             ) : (
-              <div className="empty-state">
-                {state.search ? "Nessun risultato" : "Nessuna poesia trovata"}
-              </div>
+              <p className="italic text-green-400">Nessuna analisi letteraria disponibile.</p>
             )}
-          </main>
-        </>
+          </section>
+
+          {/* Analisi Psicologica */}
+          <section className="bg-indigo-50 p-5 rounded shadow-inner border border-indigo-300 font-open-sans">
+            <h3 className="font-bold text-indigo-800 mb-3 border-b border-indigo-400 pb-2 text-lg font-montserrat">
+              Analisi Psicologica
+            </h3>
+            {analisiP ? (
+              <>
+                <p className="mb-1 font-semibold">Emozioni:</p>
+                <ul className="list-disc list-inside ml-6 text-indigo-600 mb-3">
+                  {(analisiP.emozioni || []).map((emozione: string, i: number) => (
+                    <li key={i}>{emozione}</li>
+                  ))}
+                </ul>
+                <p className="mb-1">
+                  <strong>Stato interno:</strong>{' '}
+                  <span className="text-indigo-700">{analisiP.stato_interno || 'N/A'}</span>
+                </p>
+                <p>
+                  <strong>Visione del mondo:</strong>{' '}
+                  <span className="text-indigo-700">{analisiP.visione_del_mondo || 'N/A'}</span>
+                </p>
+              </>
+            ) : (
+              <p className="italic text-indigo-400">Nessuna analisi psicologica disponibile.</p>
+            )}
+          </section>
+        </div>
       )}
     </div>
-  );
-};
+  )
+}
 
-export default App;
+// COMPONENTE PRINCIPALE DEL WIDGET (usala nel mount del widget!)
+export default function App() {
+  const [poesie, setPoesie] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [search, setSearch] = useState('')
 
-      
+  const fetchPoesie = async () => {
+    const { data, error } = await supabase
+      .from('poesie')
+      .select('id, title, content, author_name, analisi_letteraria, analisi_psicologica, created_at, audio_url')
+      .order('created_at', { ascending: false })
+
+    if (!error) setPoesie(data || [])
+    setLoading(false)
+  }
+
+  useEffect(() => {
+    fetchPoesie()
+    const interval = setInterval(fetchPoesie, 15000)
+    return () => clearInterval(interval)
+  }, [])
+
+  const poesieFiltrate = poesie.filter(p =>
+    p.title?.toLowerCase().includes(search.toLowerCase()) ||
+    p.author_name?.toLowerCase().includes(search.toLowerCase()) ||
+    p.content?.toLowerCase().includes(search.toLowerCase())
+  )
+
+  return (
+    <main className="max-w-lg sm:max-w-3xl mx-auto p-6 bg-gray-50 min-h-screen font-open-sans">
+      <h1 className="text-3xl font-extrabold mb-6 text-center text-green-700 tracking-wide font-montserrat">
+        TheItalianPoetryProject.com
+      </h1>
+
+      <div className="mb-8 poetry-search-bar">
+        <input
+          type="search"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Cerca per titolo, autore o testo..."
+          className="w-full p-4 rounded-lg border border-gray-300 focus:outline-none focus:ring-4 focus:ring-green-500 focus:border-transparent text-gray-700 text-lg"
+          aria-label="Barra di ricerca poesie"
+          autoComplete="off"
+        />
+      </div>
+
+      {loading && <p className="text-center text-gray-500">Caricamento poesie...</p>}
+
+      <div className="poesie-list" style={{maxHeight: "70vh", overflowY: "auto"}}>
+        {poesieFiltrate.length > 0 ? (
+          poesieFiltrate.map(poesia => (
+            <PoesiaBox key={poesia.id} poesia={poesia} />
+          ))
+        ) : (
+          !loading && (
+            <p className="text-center text-gray-400 mt-12 text-lg">Nessuna poesia trovata.</p>
+          )
+        )}
+      </div>
+    </main>
+  )
+}
