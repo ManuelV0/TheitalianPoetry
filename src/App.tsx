@@ -1,8 +1,10 @@
-
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { supabase } from './lib/supabaseClient';
 import { useNavigate } from 'react-router-dom'; // Se usi React Router
 import { FaArrowLeft, FaPlay, FaPause, FaStop, FaDownload } from 'react-icons/fa'; // Importa icone
+
+// --- COSTANTE API URL PER NETLIFY FUNCTION DELLA WEB APP ---
+const AUDIO_API_URL = 'https://poetry.theitalianpoetryproject.com/.netlify/functions/genera-audio';
 
 // --- IMPROVED SAFARI/iOS DETECTION ---
 function isIOSorSafari() {
@@ -40,15 +42,14 @@ const AudioPlayerWithHighlight = ({
 
     const handleTimeUpdate = () => {
       if (!audioRef.current) return;
-      
       const currentTime = audioRef.current.currentTime;
       const duration = audioRef.current.duration;
       const newProgress = currentTime / duration;
       setProgress(newProgress);
-      
+
       const wordIndex = Math.floor(newProgress * words.length);
       setCurrentWordIndex(Math.min(wordIndex, words.length - 1));
-      
+
       // Scroll alla parola corrente con contesto
       if (wordRefs.current[wordIndex]) {
         wordRefs.current[wordIndex]?.scrollIntoView({
@@ -76,7 +77,6 @@ const AudioPlayerWithHighlight = ({
 
   const togglePlayback = async () => {
     if (!audioRef.current) return;
-    
     try {
       if (isPlaying) {
         await audioRef.current.pause();
@@ -117,7 +117,6 @@ const AudioPlayerWithHighlight = ({
         <button onClick={handleStop} className="stop-button">
           <FaStop /> Stop
         </button>
-        
         <div className="speed-controls">
           <span>Velocità:</span>
           {[0.5, 0.75, 1, 1.25, 1.5].map(speed => (
@@ -130,19 +129,16 @@ const AudioPlayerWithHighlight = ({
             </button>
           ))}
         </div>
-        
         <div className="progress-bar">
           <div 
             className="progress-fill" 
             style={{ width: `${progress * 100}%` }}
           />
         </div>
-
         <button onClick={onClose} className="back-button">
           <FaArrowLeft /> Torna indietro
         </button>
       </div>
-      
       <div className="content-highlight">
         {words.map((word, index) => (
           <span 
@@ -186,8 +182,8 @@ const PoetryPage = ({ poesia, onBack }: { poesia: any, onBack: () => void }) => 
     setAudioError(null);
     try {
       if (audioUrl) return;
-      
-      const res = await fetch('/.netlify/functions/genera-audio', {
+      // CAMBIO QUI: uso URL assoluto della web app!
+      const res = await fetch(AUDIO_API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -195,7 +191,6 @@ const PoetryPage = ({ poesia, onBack }: { poesia: any, onBack: () => void }) => 
           poesia_id: poesia.id
         })
       });
-      
       const json = await res.json();
       const newAudioUrl = json.audio_url || json.audioUrl;
       if (newAudioUrl) {
@@ -221,14 +216,11 @@ const PoetryPage = ({ poesia, onBack }: { poesia: any, onBack: () => void }) => 
         cache: 'no-store',
         mode: 'cors'
       });
-      
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      
       const contentType = res.headers.get('content-type');
       if (!contentType?.includes('audio/')) {
         throw new Error(`Invalid MIME type: ${contentType}`);
       }
-
       const blob = await res.blob();
       setAudioBlobUrl(URL.createObjectURL(blob));
     } catch (err) {
@@ -242,9 +234,7 @@ const PoetryPage = ({ poesia, onBack }: { poesia: any, onBack: () => void }) => 
   // Gestione audio per iOS
   useEffect(() => {
     if (!audioUrl || !isIOSorSafari() || audioBlobUrl) return;
-
     fetchAudioAsBlob(audioUrl);
-    
     return () => {
       if (audioBlobUrl) URL.revokeObjectURL(audioBlobUrl);
     };
@@ -255,12 +245,10 @@ const PoetryPage = ({ poesia, onBack }: { poesia: any, onBack: () => void }) => 
       <button onClick={onBack} className="back-button">
         <FaArrowLeft /> Torna all'elenco
       </button>
-
       <div className="poetry-header">
         <h1>{poesia.title}</h1>
         <p className="author">{poesia.author_name || "Anonimo"}</p>
       </div>
-
       {showAudioPlayer && audioUrl ? (
         <AudioPlayerWithHighlight 
           content={poesia.content} 
@@ -273,7 +261,6 @@ const PoetryPage = ({ poesia, onBack }: { poesia: any, onBack: () => void }) => 
           <div className="poetry-text">
             <pre>{poesia.content}</pre>
           </div>
-
           <div className="audio-section">
             {audioUrl ? (
               <div className="audio-options">
@@ -300,12 +287,10 @@ const PoetryPage = ({ poesia, onBack }: { poesia: any, onBack: () => void }) => 
                 {loadingAudio ? "Generazione in corso..." : "🎙️ Genera voce AI"}
               </button>
             )}
-            
             {audioError && (
               <div className="audio-error">{audioError}</div>
             )}
           </div>
-
           <div className="analysis-sections">
             <section className="analysis-section">
               <h2>Analisi Letteraria</h2>
@@ -318,7 +303,6 @@ const PoetryPage = ({ poesia, onBack }: { poesia: any, onBack: () => void }) => 
                 </div>
               ) : <p className="no-analysis">Nessuna analisi disponibile</p>}
             </section>
-
             <section className="analysis-section">
               <h2>Analisi Psicologica</h2>
               {analisiP ? (
@@ -354,7 +338,6 @@ const App = () => {
         .select('id, title, content, author_name, analisi_letteraria, analisi_psicologica, audio_url, created_at')
         .order('created_at', { ascending: false })
         .limit(50);
-      
       if (error) throw error;
       setState(prev => ({ ...prev, poesie: data || [], loading: false }));
     } catch (err) {
@@ -415,14 +398,12 @@ const App = () => {
               )}
             </div>
           </header>
-
           {state.error && (
             <div className="error-message">
               {state.error}
               <button onClick={fetchPoesie}>Riprova</button>
             </div>
           )}
-
           <main className="poesie-list">
             {state.loading ? (
               <div className="loader">Caricamento...</div>
