@@ -25,6 +25,8 @@ const AudioPlayerWithHighlight = ({
   const words = content.split(/(\s+)/).filter(word => word.trim().length > 0);
   const wordRefs = useRef([]);
   const containerRef = useRef(null);
+  const lastScrolledIndex = useRef(-1);
+  const scrollCooldown = useRef(false);
 
   useEffect(() => {
     const audio = new Audio(audioUrl);
@@ -41,11 +43,22 @@ const AudioPlayerWithHighlight = ({
       const wordIndex = Math.floor(newProgress * words.length);
       setCurrentWordIndex(Math.min(wordIndex, words.length - 1));
 
-      if (wordRefs.current[wordIndex]) {
+      // Buffer per lo scroll: scrolla solo se necessario e senza flood
+      if (wordRefs.current[wordIndex] && 
+          wordIndex !== lastScrolledIndex.current && 
+          !scrollCooldown.current) {
+        
+        scrollCooldown.current = true;
+        lastScrolledIndex.current = wordIndex;
+        
         wordRefs.current[wordIndex]?.scrollIntoView({
           behavior: 'smooth',
           block: 'center'
         });
+
+        setTimeout(() => {
+          scrollCooldown.current = false;
+        }, 300); // Cooldown di 300ms tra uno scroll e l'altro
       }
     };
 
@@ -146,15 +159,15 @@ const AudioPlayerWithHighlight = ({
   );
 };
 
-// --- POETRY PAGE COMPONENT ---
 const PoetryPage = ({ poesia, onBack }) => {
   const [audioUrl, setAudioUrl] = useState(poesia.audio_url || null);
   const [audioBlobUrl, setAudioBlobUrl] = useState(null);
   const [audioStatus, setAudioStatus] = useState(poesia.audio_url ? 'generato' : 'non_generato');
   const [audioError, setAudioError] = useState(null);
   const [showAudioPlayer, setShowAudioPlayer] = useState(false);
+  const [timeRemaining, setTimeRemaining] = useState(120);
+  const [generationStartTime, setGenerationStartTime] = useState(null);
 
-  // Parsing delle analisi
   const parseAnalysis = (analysis) => {
     try {
       return typeof analysis === 'string' ? JSON.parse(analysis) : analysis;
@@ -166,7 +179,20 @@ const PoetryPage = ({ poesia, onBack }) => {
   const analisiL = parseAnalysis(poesia.analisi_letteraria);
   const analisiP = parseAnalysis(poesia.analisi_psicologica);
 
-  // Generazione automatica audio SE NECESSARIO
+  useEffect(() => {
+    if (audioStatus === 'in_corso' && !generationStartTime) {
+      setGenerationStartTime(Date.now());
+      
+      const timer = setInterval(() => {
+        const elapsed = Math.floor((Date.now() - generationStartTime) / 1000);
+        const remaining = Math.max(0, 120 - elapsed);
+        setTimeRemaining(remaining);
+      }, 1000);
+
+      return () => clearInterval(timer);
+    }
+  }, [audioStatus, generationStartTime]);
+
   useEffect(() => {
     if (!audioUrl && audioStatus !== 'in_corso') {
       setAudioStatus('in_corso');
@@ -200,7 +226,6 @@ const PoetryPage = ({ poesia, onBack }) => {
     }
   }, [audioUrl, audioStatus, poesia]);
 
-  // Fetch blob per iOS
   const fetchAudioAsBlob = useCallback(async (url) => {
     setAudioError(null);
     try {
@@ -228,9 +253,12 @@ const PoetryPage = ({ poesia, onBack }) => {
     };
   }, [audioUrl, audioBlobUrl, fetchAudioAsBlob]);
 
-  // Stato audio testuale
   let statoTesto = "Non generato";
-  if (audioStatus === "in_corso") statoTesto = "Generazione in corso...";
+  if (audioStatus === "in_corso") {
+    const minutes = Math.floor(timeRemaining / 60);
+    const seconds = timeRemaining % 60;
+    statoTesto = `Generazione in corso... (circa ${minutes}m ${seconds}s rimanenti)`;
+  }
   if (audioStatus === "generato") statoTesto = "Audio generato";
 
   return (
@@ -247,7 +275,19 @@ const PoetryPage = ({ poesia, onBack }) => {
           <pre>{poesia.content}</pre>
         </div>
         <div className="audio-section">
-          <div className="audio-status">{statoTesto}</div>
+          <div className="audio-status">
+            {statoTesto}
+            {audioStatus === "in_corso" && (
+              <div className="progress-indicator">
+                <div 
+                  className="progress-bar" 
+                  style={{ 
+                    width: `${Math.max(0, 100 - (timeRemaining / 120) * 100)}%` 
+                  }}
+                />
+              </div>
+            )}
+          </div>
           {audioStatus === "generato" && audioUrl && (
             <div className="audio-options">
               <button 
