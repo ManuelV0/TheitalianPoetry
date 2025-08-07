@@ -18,6 +18,8 @@ const supabase = createClient(
 const ALLOWED_ORIGINS = [
   "https://www.theitalianpoetryproject.com",
   "https://theitalianpoetryproject.com",
+  "https://poetry.theitalianpoetryproject.com",
+  "https://widget.theitalianpoetryproject.com",
   "http://localhost:5173",
   "http://localhost:3000",
   "http://127.0.0.1:5173"
@@ -30,7 +32,8 @@ exports.handler = async function(event, context) {
   const CORS_HEADERS = {
     "Access-Control-Allow-Origin": allowOrigin,
     "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, Authorization",
+    // Qui la riga importante 👇
+    "Access-Control-Allow-Headers": "Content-Type, Authorization, apikey",
     "Access-Control-Allow-Credentials": "true",
     "Vary": "Origin"
   };
