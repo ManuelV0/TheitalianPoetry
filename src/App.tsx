@@ -1,40 +1,31 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { supabase } from './lib/supabaseClient';
-import { useNavigate } from 'react-router-dom'; // Se usi React Router
-import { FaArrowLeft, FaPlay, FaPause, FaStop, FaDownload } from 'react-icons/fa'; // Importa icone
+import { useNavigate } from 'react-router-dom';
+import { FaArrowLeft, FaPlay, FaPause, FaStop, FaDownload } from 'react-icons/fa';
 
-// --- COSTANTE API URL PER NETLIFY FUNCTION DELLA WEB APP ---
 const AUDIO_API_URL = 'https://poetry.theitalianpoetryproject.com/.netlify/functions/genera-audio';
 
-// --- IMPROVED SAFARI/iOS DETECTION ---
 function isIOSorSafari() {
   if (typeof navigator === "undefined") return false;
   return /iP(ad|hone|od)/.test(navigator.userAgent) ||
     (/Safari/i.test(navigator.userAgent) && !/Chrome/i.test(navigator.userAgent));
 }
 
-// --- AUDIO PLAYER WITH HIGHLIGHT ---
 const AudioPlayerWithHighlight = ({ 
   content, 
   audioUrl,
   onClose,
   onError
-}: {
-  content: string,
-  audioUrl: string,
-  onClose: () => void,
-  onError: (message: string) => void
 }) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentWordIndex, setCurrentWordIndex] = useState(-1);
   const [progress, setProgress] = useState(0);
   const [playbackRate, setPlaybackRate] = useState(1);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const audioRef = useRef(null);
   const words = content.split(/(\s+)/).filter(word => word.trim().length > 0);
-  const wordRefs = useRef<(HTMLSpanElement | null)[]>([]);
-  const containerRef = useRef<HTMLDivElement>(null);
+  const wordRefs = useRef([]);
+  const containerRef = useRef(null);
 
-  // Inizializza l'audio e il tracciamento del testo
   useEffect(() => {
     const audio = new Audio(audioUrl);
     audio.preload = 'metadata';
@@ -50,7 +41,6 @@ const AudioPlayerWithHighlight = ({
       const wordIndex = Math.floor(newProgress * words.length);
       setCurrentWordIndex(Math.min(wordIndex, words.length - 1));
 
-      // Scroll alla parola corrente con contesto
       if (wordRefs.current[wordIndex]) {
         wordRefs.current[wordIndex]?.scrollIntoView({
           behavior: 'smooth',
@@ -100,7 +90,7 @@ const AudioPlayerWithHighlight = ({
     setProgress(0);
   };
 
-  const handleSpeedChange = (speed: number) => {
+  const handleSpeedChange = (speed) => {
     if (audioRef.current) {
       audioRef.current.playbackRate = speed;
       setPlaybackRate(speed);
@@ -157,15 +147,15 @@ const AudioPlayerWithHighlight = ({
 };
 
 // --- POETRY PAGE COMPONENT ---
-const PoetryPage = ({ poesia, onBack }: { poesia: any, onBack: () => void }) => {
+const PoetryPage = ({ poesia, onBack }) => {
   const [audioUrl, setAudioUrl] = useState(poesia.audio_url || null);
-  const [audioBlobUrl, setAudioBlobUrl] = useState<string | null>(null);
-  const [loadingAudio, setLoadingAudio] = useState(false);
-  const [audioError, setAudioError] = useState<string | null>(null);
+  const [audioBlobUrl, setAudioBlobUrl] = useState(null);
+  const [audioStatus, setAudioStatus] = useState(poesia.audio_url ? 'generato' : 'non_generato');
+  const [audioError, setAudioError] = useState(null);
   const [showAudioPlayer, setShowAudioPlayer] = useState(false);
 
   // Parsing delle analisi
-  const parseAnalysis = (analysis: any) => {
+  const parseAnalysis = (analysis) => {
     try {
       return typeof analysis === 'string' ? JSON.parse(analysis) : analysis;
     } catch {
@@ -176,40 +166,42 @@ const PoetryPage = ({ poesia, onBack }: { poesia: any, onBack: () => void }) => 
   const analisiL = parseAnalysis(poesia.analisi_letteraria);
   const analisiP = parseAnalysis(poesia.analisi_psicologica);
 
-  // Generazione audio
-  const handleGeneraAudio = async () => {
-    setLoadingAudio(true);
-    setAudioError(null);
-    try {
-      if (audioUrl) return;
-      // CAMBIO QUI: uso URL assoluto della web app!
-      const res = await fetch(AUDIO_API_URL, {
+  // Generazione automatica audio SE NECESSARIO
+  useEffect(() => {
+    if (!audioUrl && audioStatus !== 'in_corso') {
+      setAudioStatus('in_corso');
+      fetch(AUDIO_API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           text: poesia.content,
           poesia_id: poesia.id
         })
+      })
+      .then(res => res.json())
+      .then(async json => {
+        const newAudioUrl = json.audio_url || json.audioUrl;
+        if (newAudioUrl) {
+          setAudioUrl(newAudioUrl);
+          setAudioStatus('generato');
+          await supabase
+            .from('poesie')
+            .update({ audio_url: newAudioUrl, audio_generated: true })
+            .eq('id', poesia.id);
+        } else {
+          setAudioStatus('non_generato');
+          setAudioError('Errore nella generazione audio');
+        }
+      })
+      .catch(() => {
+        setAudioStatus('non_generato');
+        setAudioError('Errore nella generazione audio');
       });
-      const json = await res.json();
-      const newAudioUrl = json.audio_url || json.audioUrl;
-      if (newAudioUrl) {
-        setAudioUrl(newAudioUrl);
-        await supabase
-          .from('poesie')
-          .update({ audio_url: newAudioUrl, audio_generated: true })
-          .eq('id', poesia.id);
-      }
-    } catch (err) {
-      setAudioError('Errore nella generazione audio');
-    } finally {
-      setLoadingAudio(false);
     }
-  };
+  }, [audioUrl, audioStatus, poesia]);
 
   // Fetch blob per iOS
-  const fetchAudioAsBlob = useCallback(async (url: string) => {
-    setLoadingAudio(true);
+  const fetchAudioAsBlob = useCallback(async (url) => {
     setAudioError(null);
     try {
       const res = await fetch(`${url}?ts=${Date.now()}`, {
@@ -224,14 +216,10 @@ const PoetryPage = ({ poesia, onBack }: { poesia: any, onBack: () => void }) => 
       const blob = await res.blob();
       setAudioBlobUrl(URL.createObjectURL(blob));
     } catch (err) {
-      console.error('Audio fetch error:', err);
       setAudioError('Errore nel caricamento audio');
-    } finally {
-      setLoadingAudio(false);
     }
   }, []);
 
-  // Gestione audio per iOS
   useEffect(() => {
     if (!audioUrl || !isIOSorSafari() || audioBlobUrl) return;
     fetchAudioAsBlob(audioUrl);
@@ -239,6 +227,11 @@ const PoetryPage = ({ poesia, onBack }: { poesia: any, onBack: () => void }) => 
       if (audioBlobUrl) URL.revokeObjectURL(audioBlobUrl);
     };
   }, [audioUrl, audioBlobUrl, fetchAudioAsBlob]);
+
+  // Stato audio testuale
+  let statoTesto = "Non generato";
+  if (audioStatus === "in_corso") statoTesto = "Generazione in corso...";
+  if (audioStatus === "generato") statoTesto = "Audio generato";
 
   return (
     <div className="poetry-page">
@@ -249,85 +242,76 @@ const PoetryPage = ({ poesia, onBack }: { poesia: any, onBack: () => void }) => 
         <h1>{poesia.title}</h1>
         <p className="author">{poesia.author_name || "Anonimo"}</p>
       </div>
-      {showAudioPlayer && audioUrl ? (
+      <div className="poetry-content">
+        <div className="poetry-text">
+          <pre>{poesia.content}</pre>
+        </div>
+        <div className="audio-section">
+          <div className="audio-status">{statoTesto}</div>
+          {audioStatus === "generato" && audioUrl && (
+            <div className="audio-options">
+              <button 
+                onClick={() => setShowAudioPlayer(true)}
+                className="listen-button"
+              >
+                <FaPlay /> Ascolta con highlight
+              </button>
+              <a
+                href={audioUrl}
+                download
+                className="audio-download-link"
+              >
+                <FaDownload /> Scarica audio
+              </a>
+            </div>
+          )}
+          {audioError && (
+            <div className="audio-error">{audioError}</div>
+          )}
+        </div>
+        <div className="analysis-sections">
+          <section className="analysis-section">
+            <h2>Analisi Letteraria</h2>
+            {analisiL ? (
+              <div>
+                {analisiL.stile_letterario && <p><b>Stile:</b> {analisiL.stile_letterario}</p>}
+                {analisiL.temi && <p><b>Temi:</b> {Array.isArray(analisiL.temi) ? analisiL.temi.join(", ") : analisiL.temi}</p>}
+                {analisiL.struttura && <p><b>Struttura:</b> {analisiL.struttura}</p>}
+                {analisiL.riferimenti_culturali && <p><b>Riferimenti:</b> {analisiL.riferimenti_culturali}</p>}
+              </div>
+            ) : <p className="no-analysis">Nessuna analisi disponibile</p>}
+          </section>
+          <section className="analysis-section">
+            <h2>Analisi Psicologica</h2>
+            {analisiP ? (
+              <div>
+                {analisiP.emozioni && <p><b>Emozioni:</b> {Array.isArray(analisiP.emozioni) ? analisiP.emozioni.join(", ") : analisiP.emozioni}</p>}
+                {analisiP.stato_interno && <p><b>Stato interno:</b> {analisiP.stato_interno}</p>}
+                {analisiP.visione_del_mondo && <p><b>Visione:</b> {analisiP.visione_del_mondo}</p>}
+              </div>
+            ) : <p className="no-analysis">Nessuna analisi disponibile</p>}
+          </section>
+        </div>
+      </div>
+      {showAudioPlayer && audioUrl && (
         <AudioPlayerWithHighlight 
           content={poesia.content} 
           audioUrl={isIOSorSafari() && audioBlobUrl ? audioBlobUrl : audioUrl}
           onClose={() => setShowAudioPlayer(false)}
           onError={setAudioError}
         />
-      ) : (
-        <div className="poetry-content">
-          <div className="poetry-text">
-            <pre>{poesia.content}</pre>
-          </div>
-          <div className="audio-section">
-            {audioUrl ? (
-              <div className="audio-options">
-                <button 
-                  onClick={() => setShowAudioPlayer(true)}
-                  className="listen-button"
-                >
-                  <FaPlay /> Ascolta con highlight
-                </button>
-                <a
-                  href={audioUrl}
-                  download
-                  className="audio-download-link"
-                >
-                  <FaDownload /> Scarica audio
-                </a>
-              </div>
-            ) : (
-              <button
-                className="generate-audio-btn"
-                onClick={handleGeneraAudio}
-                disabled={loadingAudio}
-              >
-                {loadingAudio ? "Generazione in corso..." : "🎙️ Genera voce AI"}
-              </button>
-            )}
-            {audioError && (
-              <div className="audio-error">{audioError}</div>
-            )}
-          </div>
-          <div className="analysis-sections">
-            <section className="analysis-section">
-              <h2>Analisi Letteraria</h2>
-              {analisiL ? (
-                <div>
-                  {analisiL.stile_letterario && <p><b>Stile:</b> {analisiL.stile_letterario}</p>}
-                  {analisiL.temi && <p><b>Temi:</b> {Array.isArray(analisiL.temi) ? analisiL.temi.join(", ") : analisiL.temi}</p>}
-                  {analisiL.struttura && <p><b>Struttura:</b> {analisiL.struttura}</p>}
-                  {analisiL.riferimenti_culturali && <p><b>Riferimenti:</b> {analisiL.riferimenti_culturali}</p>}
-                </div>
-              ) : <p className="no-analysis">Nessuna analisi disponibile</p>}
-            </section>
-            <section className="analysis-section">
-              <h2>Analisi Psicologica</h2>
-              {analisiP ? (
-                <div>
-                  {analisiP.emozioni && <p><b>Emozioni:</b> {Array.isArray(analisiP.emozioni) ? analisiP.emozioni.join(", ") : analisiP.emozioni}</p>}
-                  {analisiP.stato_interno && <p><b>Stato interno:</b> {analisiP.stato_interno}</p>}
-                  {analisiP.visione_del_mondo && <p><b>Visione:</b> {analisiP.visione_del_mondo}</p>}
-                </div>
-              ) : <p className="no-analysis">Nessuna analisi disponibile</p>}
-            </section>
-          </div>
-        </div>
       )}
     </div>
   );
 };
 
-// --- MAIN APP COMPONENT ---
 const App = () => {
   const [state, setState] = useState({
-    poesie: [] as any[],
+    poesie: [],
     loading: true,
-    error: null as string | null,
+    error: null,
     search: '',
-    selectedPoesia: null as any | null
+    selectedPoesia: null
   });
 
   const fetchPoesie = useCallback(async () => {
@@ -351,11 +335,11 @@ const App = () => {
     return () => clearInterval(interval);
   }, [fetchPoesie]);
 
-  const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleSearch = (e) => {
     setState(prev => ({ ...prev, search: e.target.value }));
   };
 
-  const handleSelectPoesia = (poesia: any) => {
+  const handleSelectPoesia = (poesia) => {
     setState(prev => ({ ...prev, selectedPoesia: poesia }));
   };
 
