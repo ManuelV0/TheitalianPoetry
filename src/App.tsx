@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { supabase } from './lib/supabaseClient';
 import { useNavigate } from 'react-router-dom';
@@ -43,7 +44,6 @@ const AudioPlayerWithHighlight = ({
       const wordIndex = Math.floor(newProgress * words.length);
       setCurrentWordIndex(Math.min(wordIndex, words.length - 1));
 
-      // Buffer per lo scroll: scrolla solo se necessario e senza flood
       if (wordRefs.current[wordIndex] && 
           wordIndex !== lastScrolledIndex.current && 
           !scrollCooldown.current) {
@@ -58,7 +58,7 @@ const AudioPlayerWithHighlight = ({
 
         setTimeout(() => {
           scrollCooldown.current = false;
-        }, 300); // Cooldown di 300ms tra uno scroll e l'altro
+        }, 300);
       }
     };
 
@@ -176,7 +176,6 @@ const PoetryPage = ({ poesia, onBack }) => {
     }
   };
 
-  const analisiL = parseAnalysis(poesia.analisi_letteraria);
   const analisiP = parseAnalysis(poesia.analisi_psicologica);
 
   useEffect(() => {
@@ -310,27 +309,49 @@ const PoetryPage = ({ poesia, onBack }) => {
           )}
         </div>
         <div className="analysis-sections">
-          <section className="analysis-section">
-            <h2>Analisi Letteraria</h2>
-            {analisiL ? (
-              <div>
-                {analisiL.stile_letterario && <p><b>Stile:</b> {analisiL.stile_letterario}</p>}
-                {analisiL.temi && <p><b>Temi:</b> {Array.isArray(analisiL.temi) ? analisiL.temi.join(", ") : analisiL.temi}</p>}
-                {analisiL.struttura && <p><b>Struttura:</b> {analisiL.struttura}</p>}
-                {analisiL.riferimenti_culturali && <p><b>Riferimenti:</b> {analisiL.riferimenti_culturali}</p>}
-              </div>
-            ) : <p className="no-analysis">Nessuna analisi disponibile</p>}
-          </section>
-          <section className="analysis-section">
-            <h2>Analisi Psicologica</h2>
-            {analisiP ? (
-              <div>
-                {analisiP.emozioni && <p><b>Emozioni:</b> {Array.isArray(analisiP.emozioni) ? analisiP.emozioni.join(", ") : analisiP.emozioni}</p>}
-                {analisiP.stato_interno && <p><b>Stato interno:</b> {analisiP.stato_interno}</p>}
-                {analisiP.visione_del_mondo && <p><b>Visione:</b> {analisiP.visione_del_mondo}</p>}
-              </div>
-            ) : <p className="no-analysis">Nessuna analisi disponibile</p>}
-          </section>
+          {analisiP ? (
+            <>
+              <section className="analysis-section">
+                <h2>Vettori di Cambiamento Attuali</h2>
+                <ul>
+                  {(analisiP.vettori_di_cambiamento_attuali || []).map((v, i) => (
+                    <li key={i}>{v}</li>
+                  ))}
+                </ul>
+              </section>
+              <section className="analysis-section">
+                <h2>Scenario Ottimistico</h2>
+                <p>{analisiP.scenario_ottimistico || 'N/A'}</p>
+              </section>
+              <section className="analysis-section">
+                <h2>Scenario Pessimistico</h2>
+                <p>{analisiP.scenario_pessimistico || 'N/A'}</p>
+              </section>
+              <section className="analysis-section">
+                <h2>Fattori Inattesi</h2>
+                <p><strong>Positivo (Jolly):</strong> {analisiP.fattori_inattesi?.positivo_jolly || 'N/A'}</p>
+                <p><strong>Negativo (Cigno Nero):</strong> {analisiP.fattori_inattesi?.negativo_cigno_nero || 'N/A'}</p>
+              </section>
+              <section className="analysis-section">
+                <h2>Dossier Strategico per Oggi</h2>
+                <p><strong>Azioni Preparatorie Immediate:</strong></p>
+                <ul>
+                  {(analisiP.dossier_strategico_oggi?.azioni_preparatorie_immediate || []).map((a, i) => (
+                    <li key={i}>{a}</li>
+                  ))}
+                </ul>
+                <p><strong>Opportunità Emergenti:</strong></p>
+                <ul>
+                  {(analisiP.dossier_strategico_oggi?.opportunita_emergenti || []).map((o, i) => (
+                    <li key={i}>{o}</li>
+                  ))}
+                </ul>
+                <p><strong>Rischio Esistenziale da Mitigare:</strong> {analisiP.dossier_strategico_oggi?.rischio_esistenziale_da_mitigare || 'N/A'}</p>
+              </section>
+            </>
+          ) : (
+            <p className="no-analysis">Nessuna analisi disponibile</p>
+          )}
         </div>
       </div>
       {showAudioPlayer && audioUrl && (
