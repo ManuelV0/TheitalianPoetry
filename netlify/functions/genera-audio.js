@@ -1,175 +1,225 @@
-// netlify/functions/genera-audio.js
+import { Handler } from '@netlify/functions';
+import { createClient } from '@supabase/supabase-js';
+import OpenAI from 'openai';
 
-const { createClient } = require('@supabase/supabase-js');
-const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fetch(...args));
+// --- Utility per ENV
+const getEnvVar = (name) => {
+  const value = process.env[name];
+  if (!value) throw new Error(`Variabile d'ambiente mancante: ${name}`);
+  return value;
+};
 
-// --- CONFIGURAZIONE SUPABASE (SERVICE KEY necessaria!) ---
-const SUPABASE_URL = process.env.SUPABASE_URL;
-const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY;
-const VOICE_ID = 'uScy1bXtKz8vPzfdFsFw'; // Voce italiana maschile ElevenLabs
+const supabaseUrl = getEnvVar('SUPABASE_URL');
+const supabaseKey = getEnvVar('SUPABASE_ANON_KEY');
+const openaiKey = getEnvVar('OPENAI_API_KEY');
 
-const supabase = createClient(
-  SUPABASE_URL,
-  SUPABASE_SERVICE_KEY
-);
+// --- Supabase client
+const supabase = createClient(supabaseUrl, supabaseKey, {
+  auth: { persistSession: false, autoRefreshToken: false },
+  db: { schema: 'public' }
+});
 
-// --- CORS UNIVERSALE ROBUSTO ---
-const ALLOWED_ORIGINS = [
-  "https://www.theitalianpoetryproject.com",
-  "https://theitalianpoetryproject.com",
-  "https://poetry.theitalianpoetryproject.com",
-  "https://widget.theitalianpoetryproject.com",
-  "http://localhost:5173",
-  "http://localhost:3000",
-  "http://127.0.0.1:5173"
-];
+const openai = new OpenAI({ apiKey: openaiKey });
 
-exports.handler = async function(event, context) {
-  const origin = event.headers.origin || "";
-  const allowOrigin = ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
+const handler = async (event) => {
+  console.log("=== Ricevuta chiamata PoetryAI ===");
 
-  const CORS_HEADERS = {
-    "Access-Control-Allow-Origin": allowOrigin,
-    "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
-    // Qui la riga importante 👇
-    "Access-Control-Allow-Headers": "Content-Type, Authorization, apikey",
-    "Access-Control-Allow-Credentials": "true",
-    "Vary": "Origin"
-  };
-
-  // --- Preflight CORS ---
-  if (event.httpMethod === "OPTIONS") {
-    return {
-      statusCode: 204,
-      headers: CORS_HEADERS,
-      body: ""
-    };
-  }
-
-  // --- Solo POST ---
+  // --- Solo POST
   if (event.httpMethod !== 'POST') {
+    console.log("Chiamata non POST!");
     return {
       statusCode: 405,
-      headers: CORS_HEADERS,
-      body: JSON.stringify({ error: 'Solo POST ammesso' }),
+      body: JSON.stringify({ error: 'Solo POST consentito' }),
+      headers: { 'Content-Type': 'application/json' }
     };
   }
 
-  // --- Check ENV ---
-  if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY || !ELEVENLABS_API_KEY) {
+  // --- Auth: JWT obbligatorio
+  const authHeader = event.headers['authorization'] || event.headers['Authorization'];
+  const token = authHeader?.split(' ')[1];
+  if (!token) {
+    console.log("Token JWT mancante!");
     return {
-      statusCode: 500,
-      headers: CORS_HEADERS,
-      body: JSON.stringify({ error: 'Configurazione server incompleta (env missing)' }),
+      statusCode: 401,
+      body: JSON.stringify({ error: 'Token JWT mancante' }),
+      headers: { 'Content-Type': 'application/json' }
     };
   }
 
-  // --- Parse dati body ---
-  let text, poesia_id;
+  // --- Verifica token
+  let user;
   try {
-    ({ text, poesia_id } = JSON.parse(event.body || '{}'));
-  } catch (err) {
+    const { data, error } = await supabase.auth.getUser(token);
+    if (error || !data.user) {
+      console.log("Errore auth o user mancante:", error);
+      throw error || new Error('Utente non trovato');
+    }
+    user = data.user;
+  } catch (error) {
+    console.log("Errore durante auth:", error);
+    return {
+      statusCode: 403,
+      body: JSON.stringify({ error: 'Accesso non autorizzato', details: error.message }),
+      headers: { 'Content-Type': 'application/json' }
+    };
+  }
+
+  // --- Parsing body
+  let body;
+  try {
+    body = JSON.parse(event.body || '{}');
+    console.log("BODY ricevuto:", body);
+  } catch (e) {
     return {
       statusCode: 400,
-      headers: CORS_HEADERS,
-      body: JSON.stringify({ error: 'Body non valido' }),
+      body: JSON.stringify({ error: 'Formato JSON non valido' }),
+      headers: { 'Content-Type': 'application/json' }
     };
   }
 
-  if (!text || !poesia_id) {
+  if (!body.content || typeof body.content !== 'string') {
     return {
       statusCode: 400,
-      headers: CORS_HEADERS,
-      body: JSON.stringify({ error: 'Testo o ID poesia mancante' }),
+      body: JSON.stringify({ error: 'Il campo "content" è obbligatorio' }),
+      headers: { 'Content-Type': 'application/json' }
     };
   }
 
+  // --- Analisi GPT
+  let analisiGPT = {};
   try {
-    // 1. Richiesta TTS a ElevenLabs
-    const ttsResponse = await fetch(
-      `https://api.elevenlabs.io/v1/text-to-speech/${VOICE_ID}/stream`,
-      {
-        method: 'POST',
-        headers: {
-          'xi-api-key': ELEVENLABS_API_KEY,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          text: text,
-          model_id: 'eleven_multilingual_v2',
-          voice_settings: {
-            stability: 0.5,
-            similarity_boost: 0.75
-          }
-        })
-      }
-    );
+    const prompt = `
+Agisci come un "Futurista Strategico" e un analista di sistemi complessi.
+Il tuo compito non è predire il futuro, ma mappare le sue possibilità per fornire un vantaggio decisionale.
 
-    if (!ttsResponse.ok) {
-      const errorText = await ttsResponse.text();
-      return {
-        statusCode: ttsResponse.status,
-        headers: CORS_HEADERS,
-        body: JSON.stringify({ error: 'Errore dal servizio vocale', details: errorText }),
-      };
+Argomento: ${body.content}
+
+Proiettalo 20 anni nel futuro e crea un dossier strategico completo in formato JSON con la seguente struttura obbligatoria:
+
+{
+  "vettori_di_cambiamento_attuali": [
+    "Descrizione del vettore 1",
+    "Descrizione del vettore 2",
+    "Descrizione del vettore 3"
+  ],
+  "scenario_ottimistico": "Descrizione dettagliata dell'utopia plausibile",
+  "scenario_pessimistico": "Descrizione dettagliata della distopia plausibile",
+  "fattori_inattesi": {
+    "positivo_jolly": "Evento positivo imprevisto",
+    "negativo_cigno_nero": "Evento negativo imprevisto"
+  },
+  "dossier_strategico_oggi": {
+    "azioni_preparatorie_immediate": [
+      "Azione 1",
+      "Azione 2",
+      "Azione 3"
+    ],
+    "opportunita_emergenti": [
+      "Opportunità 1",
+      "Opportunità 2"
+    ],
+    "rischio_esistenziale_da_mitigare": "Descrizione del rischio"
+  }
+}
+
+Requisiti:
+- Pensa in modo sistemico: le conclusioni devono derivare dall'interconnessione dei punti.
+- Tono lucido, strategico e privo di sensazionalismo.
+- Usa esempi concreti per illustrare i tuoi punti.
+`;
+
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages: [{ role: "user", content: prompt }],
+      temperature: 0.7
+    });
+
+    console.log("RISPOSTA OPENAI:", completion.choices[0].message.content);
+
+    try {
+      analisiGPT = JSON.parse(completion.choices[0].message.content || '{}');
+    } catch (jsonErr) {
+      console.log("Errore PARSING risposta OpenAI! Risposta grezza:", completion.choices[0].message.content);
+      analisiGPT = generateMockAnalysis(body.content);
     }
-
-    const audioBuffer = Buffer.from(await ttsResponse.arrayBuffer());
-
-    // 2. Carica su Supabase Storage
-    const fileName = `poesia-${poesia_id}-${Date.now()}.mp3`;
-
-    const { error: uploadError } = await supabase
-      .storage
-      .from('poetry-audio')
-      .upload(fileName, audioBuffer, {
-        contentType: 'audio/mpeg',
-        upsert: true
-      });
-
-    if (uploadError) {
-      return {
-        statusCode: 500,
-        headers: CORS_HEADERS,
-        body: JSON.stringify({ error: 'Upload audio fallito', details: uploadError.message }),
-      };
-    }
-
-    // 3. Ottieni URL pubblico
-    const { data: { publicUrl }, error: urlError } = supabase
-      .storage
-      .from('poetry-audio')
-      .getPublicUrl(fileName);
-
-    if (urlError || !publicUrl) {
-      return {
-        statusCode: 500,
-        headers: CORS_HEADERS,
-        body: JSON.stringify({ error: 'URL pubblico non trovato', details: urlError?.message }),
-      };
-    }
-
-    // 4. Aggiorna la tabella poesie
-    const { error: updateError } = await supabase
-      .from('poesie')
-      .update({ audio_url: publicUrl, audio_generated: true })
-      .eq('id', poesia_id);
-
-    // Non è bloccante: puoi non fare throw qui
-
-    // Successo finale!
-    return {
-      statusCode: 200,
-      headers: CORS_HEADERS,
-      body: JSON.stringify({ audio_url: publicUrl }),
-    };
 
   } catch (error) {
+    console.log("Errore chiamata OpenAI (usa mock):", error);
+    analisiGPT = generateMockAnalysis(body.content);
+  }
+
+  // --- Prepara dati per Supabase
+  const poemData = {
+    title: body.title || null,
+    content: body.content,
+    author_name: body.author_name || user.user_metadata?.full_name || null,
+    profile_id: user.id,
+    instagram_handle: body.instagram_handle || null,
+    analisi_letteraria: analisiGPT.vettori_di_cambiamento_attuali || generateMockAnalysis(body.content).vettori_di_cambiamento_attuali,
+    analisi_psicologica: analisiGPT || generateMockAnalysis(body.content),
+    match_id: body.match_id || null,
+    created_at: new Date().toISOString()
+  };
+
+  // --- Inserimento in DB
+  try {
+    const { data, error } = await supabase
+      .from('poesie')
+      .insert(poemData)
+      .select('*');
+    if (error) {
+      console.log("Errore salvataggio DB:", error);
+      throw error;
+    }
+    console.log("Poesia SALVATA nel DB!", data);
+    return {
+      statusCode: 201,
+      body: JSON.stringify(data[0]),
+      headers: {
+        'Content-Type': 'application/json',
+        'Cache-Control': 'no-store'
+      }
+    };
+  } catch (error) {
+    console.log("ERRORE FINALE:", error);
     return {
       statusCode: 500,
-      headers: CORS_HEADERS,
-      body: JSON.stringify({ error: 'Errore interno del server', details: error.message }),
+      body: JSON.stringify({
+        error: 'Errore interno del server',
+        details: error.message
+      }),
+      headers: { 'Content-Type': 'application/json' }
     };
   }
 };
+
+// --- Mock fallback aggiornato
+function generateMockAnalysis(content) {
+  return {
+    vettori_di_cambiamento_attuali: [
+      "Avanzamenti tecnologici generici",
+      "Cambiamenti sociali globali",
+      "Tendenze economiche emergenti"
+    ],
+    scenario_ottimistico: "Uno scenario futuro positivo basato su cooperazione globale e uso etico delle tecnologie.",
+    scenario_pessimistico: "Uno scenario negativo caratterizzato da crisi geopolitiche e uso dannoso delle tecnologie.",
+    fattori_inattesi: {
+      positivo_jolly: "Scoperta scientifica rivoluzionaria che risolve una crisi globale.",
+      negativo_cigno_nero: "Evento catastrofico imprevisto che sconvolge le economie mondiali."
+    },
+    dossier_strategico_oggi: {
+      azioni_preparatorie_immediate: [
+        "Investire in formazione continua",
+        "Diversificare le fonti di reddito",
+        "Creare reti di collaborazione"
+      ],
+      opportunita_emergenti: [
+        "Sviluppo di tecnologie sostenibili",
+        "Mercati di nicchia legati all'adattamento climatico"
+      ],
+      rischio_esistenziale_da_mitigare: "Collasso ecologico globale"
+    }
+  };
+}
+
+export { handler };
