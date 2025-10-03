@@ -1,10 +1,26 @@
-
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { supabase } from './lib/supabaseClient';
 import { FaArrowLeft, FaPlay, FaPause, FaStop, FaDownload } from 'react-icons/fa';
 
 // --- CONFIG ENDPOINTS ---
+const BACKEND_BASE = 'https://poetri-backend.netlify.app/.netlify/functions';
 const AUDIO_API_URL = 'https://poetry.theitalianpoetryproject.com/.netlify/functions/genera-audio';
+
+// Configurazione LSTM - diversa per sviluppo/produzione
+const LSTM_SERVER_URL = process.env.NODE_ENV === 'development' 
+  ? 'http://localhost:8888'
+  : 'https://tuo-lstm-server.com'; // ← Da definire per produzione
+
+const BACKEND_ENDPOINTS = {
+  // Funzioni Netlify esistenti
+  FORZA_ANALISI: `${BACKEND_BASE}/forza-analisi`,
+  AGGIORNA_JOURNAL: `${BACKEND_BASE}/aggiorna-journal`,
+  REBUILD_JOURNAL: `${BACKEND_BASE}/rebuild-journal`,
+  
+  // Nuovi endpoint LSTM
+  MATCH_POETICO: `${LSTM_SERVER_URL}/api/match-poetico`,
+  ANALISI_LSTM: `${LSTM_SERVER_URL}/api/analisi`,
+};
 
 // --- UTILS ---
 function isIOSorSafari() {
@@ -73,6 +89,79 @@ function KeyValueBlock({ data }: { data?: any }) {
     </div>
   );
 }
+
+// --- COMPONENTE MATCH POETICO LSTM ---
+const MatchPoeticoLSTM = ({ poesia, onPoesiaSelect }: { 
+  poesia: any, 
+  onPoesiaSelect: (poesia: any) => void 
+}) => {
+  const [matchResult, setMatchResult] = useState<any>(null);
+  const [caricamento, setCaricamento] = useState(false);
+  const [errore, setErrore] = useState<string | null>(null);
+
+  const cercaMatchPoetico = async () => {
+    setCaricamento(true);
+    setErrore(null);
+    try {
+      const response = await fetch(BACKEND_ENDPOINTS.MATCH_POETICO, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          testo: poesia.content,
+          poesia_id: poesia.id,
+          limite: 5 // numero di match da restituire
+        })
+      });
+      
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      
+      const risultato = await response.json();
+      setMatchResult(risultato);
+    } catch (error) {
+      console.error('Errore match LSTM:', error);
+      setErrore('Impossibile connettersi al servizio di match poetico');
+    } finally {
+      setCaricamento(false);
+    }
+  };
+
+  return (
+    <div className="match-lstm-section">
+      <h3>🔍 Match Poetico con LSTM</h3>
+      <button 
+        onClick={cercaMatchPoetico} 
+        disabled={caricamento}
+        className="match-button"
+      >
+        {caricamento ? 'Analizzando con LSTM...' : 'Trova poesie simili'}
+      </button>
+      
+      {errore && <div className="error-message">{errore}</div>}
+      
+      {matchResult && (
+        <div className="match-results">
+          <h4>Poesie correlate:</h4>
+          {matchResult.poesie_correlate?.map((poesiaMatch: any, index: number) => (
+            <div 
+              key={index} 
+              className="match-item"
+              onClick={() => onPoesiaSelect(poesiaMatch)}
+            >
+              <div className="match-score">
+                Similarità: {(poesiaMatch.score * 100).toFixed(1)}%
+              </div>
+              <div className="match-title">{poesiaMatch.title}</div>
+              <div className="match-author">{poesiaMatch.author_name}</div>
+              <div className="match-preview">
+                {poesiaMatch.content?.slice(0, 100)}...
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
 
 // --- AUDIO PLAYER CON HIGHLIGHT ---
 const AudioPlayerWithHighlight = ({
@@ -242,6 +331,10 @@ const PoetryPage = ({ poesia, onBack }: { poesia: any; onBack: () => void }) => 
   const [showAudioPlayer, setShowAudioPlayer] = useState(false);
   const [timeRemaining, setTimeRemaining] = useState(120);
   const [generationStartTime, setGenerationStartTime] = useState<number | null>(null);
+  const [generandoAnalisi, setGenerandoAnalisi] = useState(false);
+  const [analisiStatus, setAnalisiStatus] = useState<'non_generata'|'in_corso'|'generata'>(
+    poesia.analisi_psicologica ? 'generata' : 'non_generata'
+  );
 
   // Parse analisi (robusto)
   const parseJSON = (x: any) => {
@@ -254,7 +347,42 @@ const PoetryPage = ({ poesia, onBack }: { poesia: any; onBack: () => void }) => 
   const analisiPsico = parseJSON(poesia.analisi_psicologica);
   const analisiLett = parseJSON(poesia.analisi_letteraria);
 
-  // Timer stima generazione
+  // Funzione per generare analisi psicologica (OpenAI)
+  const generaAnalisiPsicologica = async () => {
+    setGenerandoAnalisi(true);
+    setAnalisiStatus('in_corso');
+    try {
+      const response = await fetch(BACKEND_ENDPOINTS.FORZA_ANALISI, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          poem_id: poesia.id,
+          author_id: poesia.user_id || poesia.author_id,
+          title: poesia.title,
+          content: poesia.content
+        })
+      });
+      
+      const risultato = await response.json();
+      
+      if (risultato.ok) {
+        setAnalisiStatus('generata');
+        setTimeout(() => {
+          window.location.reload();
+        }, 1500);
+      } else {
+        setAudioError(risultato.error || 'Errore nella generazione analisi');
+        setAnalisiStatus('non_generata');
+      }
+    } catch (error) {
+      setAudioError('Errore di connessione con il backend');
+      setAnalisiStatus('non_generata');
+    } finally {
+      setGenerandoAnalisi(false);
+    }
+  };
+
+  // Timer stima generazione audio
   useEffect(() => {
     if (audioStatus === 'in_corso' && generationStartTime === null) {
       const start = Date.now();
@@ -623,6 +751,48 @@ const PoetryPage = ({ poesia, onBack }: { poesia: any; onBack: () => void }) => 
       <div className="poetry-content">
         <div className="poetry-text">
           <pre>{poesia.content}</pre>
+        </div>
+
+        {/* SEZIONE MATCH POETICO LSTM */}
+        <MatchPoeticoLSTM 
+          poesia={poesia} 
+          onPoesiaSelect={(poesiaMatch) => {
+            // Naviga alla poesia matchata
+            // Dovrai gestire questo stato nell'App principale
+            console.log('Poesia selezionata:', poesiaMatch);
+            // Potresti voler aggiungere una funzione di navigazione qui
+          }}
+        />
+
+        {/* SEZIONE GENERAZIONE ANALISI */}
+        <div className="analysis-generation-section">
+          {analisiStatus === 'non_generata' && (
+            <div className="generate-analysis">
+              <button 
+                onClick={generaAnalisiPsicologica}
+                disabled={generandoAnalisi}
+                className="generate-analysis-btn"
+              >
+                {generandoAnalisi ? 'Generazione in corso...' : '🔮 Genera Analisi con OpenAI'}
+              </button>
+              <p className="help-text">
+                Analisi psicologica dettagliata, analisi letteraria e profilo poetico
+              </p>
+            </div>
+          )}
+          
+          {analisiStatus === 'in_corso' && (
+            <div className="analysis-loading">
+              <div className="loader">🎭 Generando analisi con GPT-4...</div>
+              <p>Questa operazione richiede circa 10-20 secondi</p>
+            </div>
+          )}
+
+          {analisiStatus === 'generata' && !poesia.analisi_psicologica && (
+            <div className="analysis-success">
+              <p>✅ Analisi generate con successo! Ricarica la pagina per visualizzarle.</p>
+            </div>
+          )}
         </div>
 
         {/* AUDIO */}
