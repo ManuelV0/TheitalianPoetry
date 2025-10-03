@@ -8,11 +8,15 @@ export default defineConfig({
       external: [
         'react-icons/fa',
         'react-icons',
-        /^react-icons\/.*/
+        /^react-icons\/.*/,
+        'crypto-js',
+        'openai',
+        '@supabase/supabase-js',
+        'react-router-dom'
       ]
     }
   },
   optimizeDeps: {
-    exclude: ['react-icons']
+    exclude: ['react-icons', 'crypto-js', 'openai']
   }
 });
