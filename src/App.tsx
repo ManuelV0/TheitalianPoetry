@@ -1,25 +1,20 @@
+
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { supabase } from './lib/supabaseClient';
-import { FaArrowLeft, FaPlay, FaPause, FaStop, FaDownload } from 'react-icons/fa';
 
 // --- CONFIG ENDPOINTS ---
 const BACKEND_BASE = 'https://poetri-backend.netlify.app/.netlify/functions';
 const AUDIO_API_URL = 'https://poetry.theitalianpoetryproject.com/.netlify/functions/genera-audio';
 
-// Configurazione LSTM - diversa per sviluppo/produzione
 const LSTM_SERVER_URL = process.env.NODE_ENV === 'development' 
   ? 'http://localhost:8888'
-  : 'https://tuo-lstm-server.com'; // ← Da definire per produzione
+  : 'https://tuo-lstm-server.com';
 
 const BACKEND_ENDPOINTS = {
-  // Funzioni Netlify esistenti
   FORZA_ANALISI: `${BACKEND_BASE}/forza-analisi`,
   AGGIORNA_JOURNAL: `${BACKEND_BASE}/aggiorna-journal`,
   REBUILD_JOURNAL: `${BACKEND_BASE}/rebuild-journal`,
-  
-  // Nuovi endpoint LSTM
   MATCH_POETICO: `${LSTM_SERVER_URL}/api/match-poetico`,
-  ANALISI_LSTM: `${LSTM_SERVER_URL}/api/analisi`,
 };
 
 // --- UTILS ---
@@ -31,41 +26,24 @@ function isIOSorSafari() {
 
 const isNonEmptyObject = (v: any) => v && typeof v === 'object' && !Array.isArray(v) && Object.keys(v).length > 0;
 
-// Mostra liste di stringhe o oggetti (oggetti formattati)
 function SafeList({ items }: { items?: any[] }) {
-  if (!Array.isArray(items) || items.length === 0) {
-    return <p className="text-gray-500 italic">N/A</p>;
-  }
+  if (!Array.isArray(items) || items.length === 0) return <p className="text-gray-500 italic">N/A</p>;
   return (
     <ul className="list-disc list-inside ml-6">
-      {items.map((x, i) => {
-        if (typeof x === 'string' || typeof x === 'number' || typeof x === 'boolean') {
-          return <li key={i}>{String(x)}</li>;
-        }
-        // Oggetto generico -> pretty print minimale
-        return <li key={i}><code className="whitespace-pre-wrap break-words">{JSON.stringify(x)}</code></li>;
-      })}
+      {items.map((x, i) => <li key={i}>{typeof x === 'object' ? JSON.stringify(x) : String(x)}</li>)}
     </ul>
   );
 }
 
-// Lista di citazioni (stringhe)
 function CitazioniList({ items }: { items?: string[] }) {
-  if (!Array.isArray(items) || items.length === 0) {
-    return <p className="text-gray-500 italic">Nessuna citazione</p>;
-  }
+  if (!Array.isArray(items) || items.length === 0) return <p className="text-gray-500 italic">Nessuna citazione</p>;
   return (
     <ul className="list-disc list-inside ml-6">
-      {items.map((c, i) => (
-        <li key={i}>
-          <span className="block whitespace-pre-wrap">«{c}»</span>
-        </li>
-      ))}
+      {items.map((c, i) => <li key={i}><span className="block whitespace-pre-wrap">«{c}»</span></li>)}
     </ul>
   );
 }
 
-// Render per coppie chiave→valore (quando OpenAI ti manda oggetti tipo { ritmo, lessico, sintassi } o { sintesi, valutazione_finale })
 function KeyValueBlock({ data }: { data?: any }) {
   if (!isNonEmptyObject(data)) return null;
   return (
@@ -109,16 +87,14 @@ const MatchPoeticoLSTM = ({ poesia, onPoesiaSelect }: {
         body: JSON.stringify({ 
           testo: poesia.content,
           poesia_id: poesia.id,
-          limite: 5 // numero di match da restituire
+          limite: 5
         })
       });
       
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      
       const risultato = await response.json();
       setMatchResult(risultato);
     } catch (error) {
-      console.error('Errore match LSTM:', error);
       setErrore('Impossibile connettersi al servizio di match poetico');
     } finally {
       setCaricamento(false);
@@ -128,16 +104,10 @@ const MatchPoeticoLSTM = ({ poesia, onPoesiaSelect }: {
   return (
     <div className="match-lstm-section">
       <h3>🔍 Match Poetico con LSTM</h3>
-      <button 
-        onClick={cercaMatchPoetico} 
-        disabled={caricamento}
-        className="match-button"
-      >
+      <button onClick={cercaMatchPoetico} disabled={caricamento} className="match-button">
         {caricamento ? 'Analizzando con LSTM...' : 'Trova poesie simili'}
       </button>
-      
       {errore && <div className="error-message">{errore}</div>}
-      
       {matchResult && (
         <div className="match-results">
           <h4>Poesie correlate:</h4>
@@ -147,14 +117,10 @@ const MatchPoeticoLSTM = ({ poesia, onPoesiaSelect }: {
               className="match-item"
               onClick={() => onPoesiaSelect(poesiaMatch)}
             >
-              <div className="match-score">
-                Similarità: {(poesiaMatch.score * 100).toFixed(1)}%
-              </div>
+              <div className="match-score">Similarità: {(poesiaMatch.score * 100).toFixed(1)}%</div>
               <div className="match-title">{poesiaMatch.title}</div>
               <div className="match-author">{poesiaMatch.author_name}</div>
-              <div className="match-preview">
-                {poesiaMatch.content?.slice(0, 100)}...
-              </div>
+              <div className="match-preview">{poesiaMatch.content?.slice(0, 100)}...</div>
             </div>
           ))}
         </div>
@@ -163,7 +129,7 @@ const MatchPoeticoLSTM = ({ poesia, onPoesiaSelect }: {
   );
 };
 
-// --- AUDIO PLAYER CON HIGHLIGHT ---
+// --- AUDIO PLAYER CON HIGHLIGHT (SENZA ICONE) ---
 const AudioPlayerWithHighlight = ({
   content,
   audioUrl,
@@ -201,22 +167,11 @@ const AudioPlayerWithHighlight = ({
       const wordIndex = Math.floor(newProgress * words.length);
       setCurrentWordIndex(Math.min(wordIndex, words.length - 1));
 
-      if (
-        wordRefs.current[wordIndex] &&
-        wordIndex !== lastScrolledIndex.current &&
-        !scrollCooldown.current
-      ) {
+      if (wordRefs.current[wordIndex] && wordIndex !== lastScrolledIndex.current && !scrollCooldown.current) {
         scrollCooldown.current = true;
         lastScrolledIndex.current = wordIndex;
-
-        wordRefs.current[wordIndex]?.scrollIntoView({
-          behavior: 'smooth',
-          block: 'center'
-        });
-
-        setTimeout(() => {
-          scrollCooldown.current = false;
-        }, 300);
+        wordRefs.current[wordIndex]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        setTimeout(() => { scrollCooldown.current = false; }, 300);
       }
     };
 
@@ -252,7 +207,6 @@ const AudioPlayerWithHighlight = ({
       }
       setIsPlaying(!isPlaying);
     } catch (err) {
-      console.error('Playback error:', err);
       onError('Impossibile avviare la riproduzione');
     }
   };
@@ -278,12 +232,9 @@ const AudioPlayerWithHighlight = ({
     <div className="audio-player-modal" ref={containerRef}>
       <div className="audio-controls">
         <button onClick={togglePlayback} className="play-button">
-          {isPlaying ? <FaPause /> : <FaPlay />}
-          {isPlaying ? ' Pausa' : ' Riproduci'}
+          {isPlaying ? '⏸ Pausa' : '▶ Riproduci'}
         </button>
-        <button onClick={handleStop} className="stop-button">
-          <FaStop /> Stop
-        </button>
+        <button onClick={handleStop} className="stop-button">⏹ Stop</button>
         <div className="speed-controls">
           <span>Velocità:</span>
           {[0.5, 0.75, 1, 1.25, 1.5].map(speed => (
@@ -299,17 +250,13 @@ const AudioPlayerWithHighlight = ({
         <div className="progress-bar">
           <div className="progress-fill" style={{ width: `${progress * 100}%` }} />
         </div>
-        <button onClick={onClose} className="back-button">
-          Torna indietro
-        </button>
+        <button onClick={onClose} className="back-button">Torna indietro</button>
       </div>
       <div className="content-highlight">
         {words.map((word, index) => (
           <span
             key={index}
-            ref={el => {
-              if (el) wordRefs.current[index] = el;
-            }}
+            ref={el => { if (el) wordRefs.current[index] = el; }}
             className={`word ${currentWordIndex === index ? 'highlight' : ''} ${
               Math.abs(currentWordIndex - index) < 3 ? 'glow' : ''
             }`}
@@ -336,18 +283,12 @@ const PoetryPage = ({ poesia, onBack }: { poesia: any; onBack: () => void }) => 
     poesia.analisi_psicologica ? 'generata' : 'non_generata'
   );
 
-  // Parse analisi (robusto)
   const parseJSON = (x: any) => {
-    try {
-      return typeof x === 'string' ? JSON.parse(x) : x;
-    } catch {
-      return null;
-    }
+    try { return typeof x === 'string' ? JSON.parse(x) : x; } catch { return null; }
   };
   const analisiPsico = parseJSON(poesia.analisi_psicologica);
   const analisiLett = parseJSON(poesia.analisi_letteraria);
 
-  // Funzione per generare analisi psicologica (OpenAI)
   const generaAnalisiPsicologica = async () => {
     setGenerandoAnalisi(true);
     setAnalisiStatus('in_corso');
@@ -364,12 +305,9 @@ const PoetryPage = ({ poesia, onBack }: { poesia: any; onBack: () => void }) => 
       });
       
       const risultato = await response.json();
-      
       if (risultato.ok) {
         setAnalisiStatus('generata');
-        setTimeout(() => {
-          window.location.reload();
-        }, 1500);
+        setTimeout(() => { window.location.reload(); }, 1500);
       } else {
         setAudioError(risultato.error || 'Errore nella generazione analisi');
         setAnalisiStatus('non_generata');
@@ -382,33 +320,26 @@ const PoetryPage = ({ poesia, onBack }: { poesia: any; onBack: () => void }) => 
     }
   };
 
-  // Timer stima generazione audio
   useEffect(() => {
     if (audioStatus === 'in_corso' && generationStartTime === null) {
       const start = Date.now();
       setGenerationStartTime(start);
-
       const timer = setInterval(() => {
         const elapsed = Math.floor((Date.now() - start) / 1000);
         const remaining = Math.max(0, 120 - elapsed);
         setTimeRemaining(remaining);
       }, 1000);
-
       return () => clearInterval(timer);
     }
   }, [audioStatus, generationStartTime]);
 
-  // Se non ho audio_url, provo a generarlo una volta
   useEffect(() => {
     if (!audioUrl && audioStatus !== 'in_corso') {
       setAudioStatus('in_corso');
       fetch(AUDIO_API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          text: poesia.content,
-          poesia_id: poesia.id
-        })
+        body: JSON.stringify({ text: poesia.content, poesia_id: poesia.id })
       })
         .then(res => res.json())
         .then(async json => {
@@ -432,14 +363,11 @@ const PoetryPage = ({ poesia, onBack }: { poesia: any; onBack: () => void }) => 
     }
   }, [audioUrl, audioStatus, poesia]);
 
-  // iOS/Safari: scarico il blob per autoplay policy
   const fetchAudioAsBlob = useCallback(async (url: string) => {
     setAudioError(null);
     try {
       const res = await fetch(`${url}?ts=${Date.now()}`, { cache: 'no-store', mode: 'cors' });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const ct = res.headers.get('content-type');
-      if (!ct?.includes('audio/')) throw new Error(`Invalid MIME type: ${ct}`);
       const blob = await res.blob();
       setAudioBlobUrl(URL.createObjectURL(blob));
     } catch (err) {
@@ -463,18 +391,12 @@ const PoetryPage = ({ poesia, onBack }: { poesia: any; onBack: () => void }) => 
   }
   if (audioStatus === 'generato') statoTesto = 'Audio generato';
 
-  // ----- RENDER ANALISI: PSICO DETTAGLIATA -----
   const renderAnalisiPsicoDettagliata = () => {
     const a = analisiPsico || {};
-    const hasDetailed =
-      Array.isArray(a?.fallacie_logiche) ||
-      Array.isArray(a?.bias_cognitivi) ||
-      Array.isArray(a?.meccanismi_di_difesa) ||
-      Array.isArray(a?.schemi_autosabotanti);
-
+    const hasDetailed = Array.isArray(a?.fallacie_logiche) || Array.isArray(a?.bias_cognitivi) || 
+                      Array.isArray(a?.meccanismi_di_difesa) || Array.isArray(a?.schemi_autosabotanti);
     if (!hasDetailed) return null;
 
-    // render di meccanismi come [{nome, evidenze:[]}] etc.
     const renderNamedList = (arr?: any[]) => {
       if (!Array.isArray(arr) || arr.length === 0) return <p className="text-gray-500 italic">N/A</p>;
       return (
@@ -502,82 +424,38 @@ const PoetryPage = ({ poesia, onBack }: { poesia: any; onBack: () => void }) => 
 
     return (
       <>
-        <section className="analysis-section">
-          <h2>Analisi Psicologica – Fallacie Logiche</h2>
-          <SafeList items={a?.fallacie_logiche} />
-        </section>
-
-        <section className="analysis-section">
-          <h2>Analisi Psicologica – Bias Cognitivi</h2>
-          <SafeList items={a?.bias_cognitivi} />
-        </section>
-
-        <section className="analysis-section">
-          <h2>Analisi Psicologica – Meccanismi di Difesa</h2>
-          {renderNamedList(a?.meccanismi_di_difesa)}
-        </section>
-
-        <section className="analysis-section">
-          <h2>Analisi Psicologica – Schemi Autosabotanti</h2>
-          <SafeList items={a?.schemi_autosabotanti} />
-        </section>
+        <section className="analysis-section"><h2>Analisi Psicologica – Fallacie Logiche</h2><SafeList items={a?.fallacie_logiche} /></section>
+        <section className="analysis-section"><h2>Analisi Psicologica – Bias Cognitivi</h2><SafeList items={a?.bias_cognitivi} /></section>
+        <section className="analysis-section"><h2>Analisi Psicologica – Meccanismi di Difesa</h2>{renderNamedList(a?.meccanismi_di_difesa)}</section>
+        <section className="analysis-section"><h2>Analisi Psicologica – Schemi Autosabotanti</h2><SafeList items={a?.schemi_autosabotanti} /></section>
       </>
     );
   };
 
-  // ----- RENDER ANALISI: FUTURISTA (vecchio schema) -----
   const renderAnalisiFuturista = () => {
     const a = analisiPsico || {};
-    const hasFuturista =
-      Array.isArray(a?.vettori_di_cambiamento_attuali) ||
-      a?.scenario_ottimistico ||
-      a?.scenario_pessimistico ||
-      a?.fattori_inattesi ||
-      a?.dossier_strategico_oggi;
-
+    const hasFuturista = Array.isArray(a?.vettori_di_cambiamento_attuali) || a?.scenario_ottimistico || 
+                        a?.scenario_pessimistico || a?.fattori_inattesi || a?.dossier_strategico_oggi;
     if (!hasFuturista) return null;
 
     return (
       <>
-        <section className="analysis-section">
-          <h2>Vettori di Cambiamento Attuali</h2>
-          <SafeList items={a?.vettori_di_cambiamento_attuali} />
-        </section>
-
-        <section className="analysis-section">
-          <h2>Scenario Ottimistico</h2>
-          <p className="whitespace-pre-wrap">{a?.scenario_ottimistico || 'N/A'}</p>
-        </section>
-
-        <section className="analysis-section">
-          <h2>Scenario Pessimistico</h2>
-          <p className="whitespace-pre-wrap">{a?.scenario_pessimistico || 'N/A'}</p>
-        </section>
-
-        <section className="analysis-section">
-          <h2>Fattori Inattesi</h2>
+        <section className="analysis-section"><h2>Vettori di Cambiamento Attuali</h2><SafeList items={a?.vettori_di_cambiamento_attuali} /></section>
+        <section className="analysis-section"><h2>Scenario Ottimistico</h2><p className="whitespace-pre-wrap">{a?.scenario_ottimistico || 'N/A'}</p></section>
+        <section className="analysis-section"><h2>Scenario Pessimistico</h2><p className="whitespace-pre-wrap">{a?.scenario_pessimistico || 'N/A'}</p></section>
+        <section className="analysis-section"><h2>Fattori Inattesi</h2>
           <p><strong>Positivo (Jolly):</strong> {a?.fattori_inattesi?.positivo_jolly || 'N/A'}</p>
           <p><strong>Negativo (Cigno Nero):</strong> {a?.fattori_inattesi?.negativo_cigno_nero || 'N/A'}</p>
         </section>
-
-        <section className="analysis-section">
-          <h2>Dossier Strategico per Oggi</h2>
-          <p className="font-semibold">Azioni Preparatorie Immediate:</p>
-          <SafeList items={a?.dossier_strategico_oggi?.azioni_preparatorie_immediate} />
-
-          <p className="font-semibold mt-2">Opportunità Emergenti:</p>
-          <SafeList items={a?.dossier_strategico_oggi?.opportunita_emergenti} />
-
-          <p className="mt-2">
-            <strong>Rischio Esistenziale da Mitigare:</strong>{' '}
-            {a?.dossier_strategico_oggi?.rischio_esistenziale_da_mitigare || 'N/A'}
-          </p>
+        <section className="analysis-section"><h2>Dossier Strategico per Oggi</h2>
+          <p className="font-semibold">Azioni Preparatorie Immediate:</p><SafeList items={a?.dossier_strategico_oggi?.azioni_preparatorie_immediate} />
+          <p className="font-semibold mt-2">Opportunità Emergenti:</p><SafeList items={a?.dossier_strategico_oggi?.opportunita_emergenti} />
+          <p className="mt-2"><strong>Rischio Esistenziale da Mitigare:</strong> {a?.dossier_strategico_oggi?.rischio_esistenziale_da_mitigare || 'N/A'}</p>
         </section>
       </>
     );
   };
 
-  // ----- RENDER ANALISI: LETTERARIA (nuovo schema) -----
   const renderAnalisiLetteraria = () => {
     const a = analisiLett || {};
     const temi = a?.analisi_tematica_filosofica;
@@ -585,18 +463,14 @@ const PoetryPage = ({ poesia, onBack }: { poesia: any; onBack: () => void }) => 
     const contesto = a?.contesto_storico_biografico;
     const sintesi = a?.sintesi_critica_conclusione;
 
-    const hasAnything =
-      isNonEmptyObject(temi) || isNonEmptyObject(stile) || isNonEmptyObject(contesto) || (!!sintesi || isNonEmptyObject(sintesi));
-
+    const hasAnything = isNonEmptyObject(temi) || isNonEmptyObject(stile) || isNonEmptyObject(contesto) || (!!sintesi || isNonEmptyObject(sintesi));
     if (!hasAnything) return null;
 
     return (
       <>
-        {/* 1. Analisi Tematica/Filosofica */}
         {isNonEmptyObject(temi) && (
           <section className="analysis-section">
             <h2>Analisi Tematica e Filosofica</h2>
-
             {Array.isArray(temi?.temi_principali) && temi.temi_principali.length > 0 && (
               <div className="mb-3">
                 <h4 className="font-semibold">Temi principali</h4>
@@ -605,81 +479,45 @@ const PoetryPage = ({ poesia, onBack }: { poesia: any; onBack: () => void }) => 
                     <p className="font-medium">{t?.tema || 'Tema'}</p>
                     {t?.spiegazione && <p className="whitespace-pre-wrap">{t.spiegazione}</p>}
                     {Array.isArray(t?.citazioni) && (
-                      <div className="mt-1">
-                        <p className="text-sm font-semibold">Citazioni:</p>
-                        <CitazioniList items={t.citazioni} />
-                      </div>
+                      <div className="mt-1"><p className="text-sm font-semibold">Citazioni:</p><CitazioniList items={t.citazioni} /></div>
                     )}
                   </div>
                 ))}
               </div>
             )}
-
             {Array.isArray(temi?.temi_secondari) && temi.temi_secondari.length > 0 && (
-              <div className="mb-2">
-                <h4 className="font-semibold">Temi secondari</h4>
-                <SafeList items={temi.temi_secondari} />
-              </div>
+              <div className="mb-2"><h4 className="font-semibold">Temi secondari</h4><SafeList items={temi.temi_secondari} /></div>
             )}
-
             {temi?.tesi_filosofica && (
-              <div className="mt-2">
-                <h4 className="font-semibold">Tesi filosofica</h4>
-                <p className="whitespace-pre-wrap">{temi.tesi_filosofica}</p>
-              </div>
+              <div className="mt-2"><h4 className="font-semibold">Tesi filosofica</h4><p className="whitespace-pre-wrap">{temi.tesi_filosofica}</p></div>
             )}
           </section>
         )}
 
-        {/* 2-3. Stilistica/Narratologia (gestione oggetti tipo {ritmo, lessico, sintassi}) */}
         {isNonEmptyObject(stile) && (
           <section className="analysis-section">
             <h2>Analisi Stilistica e Narratologica</h2>
-
-            {/* Se "stile" è stringa -> mostra. Se è oggetto (ritmo/lessico/sintassi) -> KeyValueBlock */}
             {stile?.stile && typeof stile.stile === 'string' ? (
-              <>
-                <h4 className="font-semibold">Stile di scrittura</h4>
-                <p className="whitespace-pre-wrap">{stile.stile}</p>
-              </>
+              <><h4 className="font-semibold">Stile di scrittura</h4><p className="whitespace-pre-wrap">{stile.stile}</p></>
             ) : isNonEmptyObject(stile?.stile) ? (
-              <>
-                <h4 className="font-semibold">Stile di scrittura</h4>
-                <KeyValueBlock data={stile.stile} />
-              </>
+              <><h4 className="font-semibold">Stile di scrittura</h4><KeyValueBlock data={stile.stile} /></>
             ) : null}
-
             {(stile?.narratore || stile?.tempo_narrativo) && (
               <div className="grid gap-2 sm:grid-cols-2 mt-3">
-                {stile?.narratore && (
-                  <div>
-                    <h5 className="font-semibold">Narratore</h5>
-                    <p className="whitespace-pre-wrap">{String(stile.narratore)}</p>
-                  </div>
-                )}
-                {stile?.tempo_narrativo && (
-                  <div>
-                    <h5 className="font-semibold">Tempo narrativo</h5>
-                    <p className="whitespace-pre-wrap">{String(stile.tempo_narrativo)}</p>
-                  </div>
-                )}
+                {stile?.narratore && <div><h5 className="font-semibold">Narratore</h5><p className="whitespace-pre-wrap">{String(stile.narratore)}</p></div>}
+                {stile?.tempo_narrativo && <div><h5 className="font-semibold">Tempo narrativo</h5><p className="whitespace-pre-wrap">{String(stile.tempo_narrativo)}</p></div>}
               </div>
             )}
-
             {Array.isArray(stile?.dispositivi_retorici) && stile.dispositivi_retorici.length > 0 && (
               <div className="mt-3">
                 <h4 className="font-semibold">Figure/Dispositivi retorici</h4>
                 <ul className="list-disc list-inside ml-6">
                   {stile.dispositivi_retorici.map((d: any, i: number) => (
-                    <li key={i}>
-                      <span className="font-medium">{d?.nome || 'Dispositivo'}</span>
-                      {d?.effetto && <span>: {d.effetto}</span>}
-                    </li>
+                    <li key={i}><span className="font-medium">{d?.nome || 'Dispositivo'}</span>{d?.effetto && <span>: {d.effetto}</span>}</li>
                   ))}
                 </ul>
               </div>
             )}
-
             {Array.isArray(stile?.personaggi) && stile.personaggi.length > 0 && (
               <div className="mt-3">
                 <h4 className="font-semibold">Personaggi e Analisi Psicologica</h4>
@@ -689,10 +527,7 @@ const PoetryPage = ({ poesia, onBack }: { poesia: any; onBack: () => void }) => 
                     {p?.arco && <p>Arco: {p.arco}</p>}
                     {p?.motivazioni && <p>Motivazioni: {p.motivazioni}</p>}
                     {Array.isArray(p?.meccanismi_di_difesa) && p.meccanismi_di_difesa.length > 0 && (
-                      <>
-                        <p className="text-sm font-semibold mt-1">Meccanismi di difesa:</p>
-                        <SafeList items={p.meccanismi_di_difesa} />
-                      </>
+                      <><p className="text-sm font-semibold mt-1">Meccanismi di difesa:</p><SafeList items={p.meccanismi_di_difesa} /></>
                     )}
                   </div>
                 ))}
@@ -701,36 +536,18 @@ const PoetryPage = ({ poesia, onBack }: { poesia: any; onBack: () => void }) => 
           </section>
         )}
 
-        {/* 4. Contesto */}
         {isNonEmptyObject(contesto) && (
           <section className="analysis-section">
             <h2>Contesto Storico e Biografico</h2>
-            {contesto?.storico && (
-              <>
-                <h4 className="font-semibold">Contesto storico-culturale</h4>
-                <p className="whitespace-pre-wrap">{contesto.storico}</p>
-              </>
-            )}
-            {contesto?.biografico && (
-              <>
-                <h4 className="font-semibold mt-2">Note biografiche rilevanti</h4>
-                <p className="whitespace-pre-wrap">{contesto.biografico}</p>
-              </>
-            )}
+            {contesto?.storico && <><h4 className="font-semibold">Contesto storico-culturale</h4><p className="whitespace-pre-wrap">{contesto.storico}</p></>}
+            {contesto?.biografico && <><h4 className="font-semibold mt-2">Note biografiche rilevanti</h4><p className="whitespace-pre-wrap">{contesto.biografico}</p></>}
           </section>
         )}
 
-        {/* 5. Sintesi/Conclusione (può essere stringa o oggetto {sintesi, valutazione_finale}) */}
         {sintesi && (
           <section className="analysis-section">
             <h2>Sintesi Critica e Conclusione</h2>
-            {typeof sintesi === 'string' ? (
-              <p className="whitespace-pre-wrap">{sintesi}</p>
-            ) : isNonEmptyObject(sintesi) ? (
-              <KeyValueBlock data={sintesi} />
-            ) : (
-              <p className="text-gray-500 italic">N/A</p>
-            )}
+            {typeof sintesi === 'string' ? <p className="whitespace-pre-wrap">{sintesi}</p> : isNonEmptyObject(sintesi) ? <KeyValueBlock data={sintesi} /> : <p className="text-gray-500 italic">N/A</p>}
           </section>
         )}
       </>
@@ -739,9 +556,7 @@ const PoetryPage = ({ poesia, onBack }: { poesia: any; onBack: () => void }) => 
 
   return (
     <div className="poetry-page">
-      <button onClick={onBack} className="back-button">
-        <FaArrowLeft /> Torna all'elenco
-      </button>
+      <button onClick={onBack} className="back-button">← Torna all'elenco</button>
 
       <div className="poetry-header">
         <h1>{poesia.title}</h1>
@@ -749,92 +564,53 @@ const PoetryPage = ({ poesia, onBack }: { poesia: any; onBack: () => void }) => 
       </div>
 
       <div className="poetry-content">
-        <div className="poetry-text">
-          <pre>{poesia.content}</pre>
-        </div>
+        <div className="poetry-text"><pre>{poesia.content}</pre></div>
 
-        {/* SEZIONE MATCH POETICO LSTM */}
-        <MatchPoeticoLSTM 
-          poesia={poesia} 
-          onPoesiaSelect={(poesiaMatch) => {
-            // Naviga alla poesia matchata
-            // Dovrai gestire questo stato nell'App principale
-            console.log('Poesia selezionata:', poesiaMatch);
-            // Potresti voler aggiungere una funzione di navigazione qui
-          }}
-        />
+        <MatchPoeticoLSTM poesia={poesia} onPoesiaSelect={(poesiaMatch) => console.log('Poesia selezionata:', poesiaMatch)} />
 
-        {/* SEZIONE GENERAZIONE ANALISI */}
         <div className="analysis-generation-section">
           {analisiStatus === 'non_generata' && (
             <div className="generate-analysis">
-              <button 
-                onClick={generaAnalisiPsicologica}
-                disabled={generandoAnalisi}
-                className="generate-analysis-btn"
-              >
+              <button onClick={generaAnalisiPsicologica} disabled={generandoAnalisi} className="generate-analysis-btn">
                 {generandoAnalisi ? 'Generazione in corso...' : '🔮 Genera Analisi con OpenAI'}
               </button>
-              <p className="help-text">
-                Analisi psicologica dettagliata, analisi letteraria e profilo poetico
-              </p>
+              <p className="help-text">Analisi psicologica dettagliata, analisi letteraria e profilo poetico</p>
             </div>
           )}
-          
           {analisiStatus === 'in_corso' && (
             <div className="analysis-loading">
               <div className="loader">🎭 Generando analisi con GPT-4...</div>
               <p>Questa operazione richiede circa 10-20 secondi</p>
             </div>
           )}
-
           {analisiStatus === 'generata' && !poesia.analisi_psicologica && (
-            <div className="analysis-success">
-              <p>✅ Analisi generate con successo! Ricarica la pagina per visualizzarle.</p>
-            </div>
+            <div className="analysis-success"><p>✅ Analisi generate con successo! Ricarica la pagina per visualizzarle.</p></div>
           )}
         </div>
 
-        {/* AUDIO */}
         <div className="audio-section">
           <div className="audio-status">
             {statoTesto}
             {audioStatus === 'in_corso' && (
               <div className="progress-indicator">
-                <div
-                  className="progress-bar"
-                  style={{ width: `${Math.max(0, 100 - (timeRemaining / 120) * 100)}%` }}
-                />
+                <div className="progress-bar" style={{ width: `${Math.max(0, 100 - (timeRemaining / 120) * 100)}%` }} />
               </div>
             )}
           </div>
 
           {audioStatus === 'generato' && audioUrl && (
             <div className="audio-options">
-              <button
-                onClick={() => setShowAudioPlayer(true)}
-                className="listen-button"
-              >
-                <FaPlay /> Ascolta con highlight
-              </button>
-              <a href={audioUrl} download className="audio-download-link">
-                <FaDownload /> Scarica audio
-              </a>
+              <button onClick={() => setShowAudioPlayer(true)} className="listen-button">▶ Ascolta con highlight</button>
+              <a href={audioUrl} download className="audio-download-link">📥 Scarica audio</a>
             </div>
           )}
 
           {audioError && <div className="audio-error">{audioError}</div>}
         </div>
 
-        {/* ANALISI */}
         <div className="analysis-sections">
-          {/* Psicologica dettagliata */}
           {renderAnalisiPsicoDettagliata()}
-
-          {/* Letteraria */}
           {renderAnalisiLetteraria()}
-
-          {/* Futurista (se presente dentro analisi_psicologica) */}
           {renderAnalisiFuturista()}
         </div>
       </div>
@@ -885,7 +661,7 @@ const App = () => {
 
   useEffect(() => {
     fetchPoesie();
-    const interval = setInterval(fetchPoesie, 300000); // 5 minuti
+    const interval = setInterval(fetchPoesie, 300000);
     return () => clearInterval(interval);
   }, [fetchPoesie]);
 
@@ -951,7 +727,7 @@ const App = () => {
                   className="poesia-card"
                   onClick={() => handleSelectPoesia(poesia)}
                 >
-                  <h3>{poesia.title}</h3>
+                  <h3>{poesia.title}</h3>"react-icons": "^4.12.0"
                   <p className="author">{poesia.author_name || 'Anonimo'}</p>
                   <p className="preview">{(poesia.content || '').slice(0, 120)}...</p>
                 </div>
