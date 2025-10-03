@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { supabase } from './lib/supabaseClient';
 
@@ -250,7 +249,7 @@ const AudioPlayerWithHighlight = ({
         <div className="progress-bar">
           <div className="progress-fill" style={{ width: `${progress * 100}%` }} />
         </div>
-        <button onClick={onClose} className="back-button">Torna indietro</button>
+        <button onClick={onClose} className="back-button">← Torna indietro</button>
       </div>
       <div className="content-highlight">
         {words.map((word, index) => (
@@ -727,7 +726,7 @@ const App = () => {
                   className="poesia-card"
                   onClick={() => handleSelectPoesia(poesia)}
                 >
-                  <h3>{poesia.title}</h3>"react-icons": "^4.12.0"
+                  <h3>{poesia.title}</h3>
                   <p className="author">{poesia.author_name || 'Anonimo'}</p>
                   <p className="preview">{(poesia.content || '').slice(0, 120)}...</p>
                 </div>
