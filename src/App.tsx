@@ -114,7 +114,6 @@ function App() {
           }}>
             <button
               onClick={async () => {
-                // Qui puoi aggiungere la logica per generare analisi
                 alert('Funzione di generazione analisi verrà implementata');
               }}
               style={{
@@ -127,7 +126,7 @@ function App() {
                 cursor: 'pointer'
               }}
             >
-              🔮 Genera Analisi con AI
+              🧠 Genera Analisi con AI
             </button>
             <p style={{ color: '#666', marginTop: '0.5rem' }}>
               Analisi psicologica e letteraria dettagliata
