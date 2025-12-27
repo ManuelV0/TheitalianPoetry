@@ -5,7 +5,25 @@
 [[headers]]
   for = "/*"
   [headers.values]
-    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.theitalianpoetryproject.com https://theitalianpoetryproject.com https://*.googletagmanager.com https://*.google-analytics.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https://*.google-analytics.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://djikypgmchywybjxbwar.supabase.co https://*.supabase.co https://poetry.theitalianpoetryproject.com https://backend.theitalianpoetryproject.com https://*.google-analytics.com;"
+    Content-Security-Policy = "
+      default-src 'self';
+      script-src 'self' 'unsafe-inline' 'unsafe-eval'
+        https://www.theitalianpoetryproject.com
+        https://theitalianpoetryproject.com
+        https://*.googletagmanager.com
+        https://*.google-analytics.com;
+      style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+      img-src 'self' data: blob: https://*.google-analytics.com;
+      font-src 'self' https://fonts.gstatic.com;
+      connect-src 'self'
+        https://*.supabase.co
+        https://poetry.theitalianpoetryproject.com
+        https://backend.theitalianpoetryproject.com
+        https://*.google-analytics.com;
+      media-src 'self' blob: https://*.supabase.co https://poetry.theitalianpoetryproject.com;
+      frame-ancestors 'self' https://www.theitalianpoetryproject.com https://theitalianpoetryproject.com;
+    "
+
 
 [[headers]]
   for = "/.netlify/functions/*"
