@@ -152,50 +152,76 @@ const AudioPlayerWithHighlight = ({
   const lastScrolledIndex = useRef(-1);
   const scrollCooldown = useRef(false);
 
-  
-const togglePlayback = async () => {
-  try {
-    // Crea l'audio SOLO su gesto utente (Safari-safe)
-    if (!audioRef.current) {
-      const audio = new Audio(audioUrl);
-      audio.preload = 'metadata';
-      audioRef.current = audio;
+  useEffect(() => {
+    const audio = new Audio(audioUrl);
+    audio.preload = 'metadata';
+    audioRef.current = audio;
 
-      audio.addEventListener('timeupdate', () => {
-        if (!audioRef.current) return;
+    const handleTimeUpdate = () => {
+      if (!audioRef.current) return;
+      const currentTime = audioRef.current.currentTime;
+      const duration = audioRef.current.duration || 1;
+      const newProgress = currentTime / duration;
+      setProgress(newProgress);
 
-        const currentTime = audioRef.current.currentTime;
-        const duration = audioRef.current.duration || 1;
-        const progress = currentTime / duration;
-        setProgress(progress);
+      const wordIndex = Math.floor(newProgress * words.length);
+      setCurrentWordIndex(Math.min(wordIndex, words.length - 1));
 
-        const wordIndex = Math.floor(progress * words.length);
-        setCurrentWordIndex(Math.min(wordIndex, words.length - 1));
-      });
+      if (
+        wordRefs.current[wordIndex] &&
+        wordIndex !== lastScrolledIndex.current &&
+        !scrollCooldown.current
+      ) {
+        scrollCooldown.current = true;
+        lastScrolledIndex.current = wordIndex;
 
-      audio.addEventListener('ended', () => {
-        setIsPlaying(false);
-        setCurrentWordIndex(-1);
-      });
+        wordRefs.current[wordIndex]?.scrollIntoView({
+          behavior: 'smooth',
+          block: 'center'
+        });
 
-      audio.addEventListener('error', () => {
-        onError('Errore durante la riproduzione');
-        setIsPlaying(false);
-      });
-    }
+        setTimeout(() => {
+          scrollCooldown.current = false;
+        }, 300);
+      }
+    };
 
-    if (audioRef.current.paused) {
-      await audioRef.current.play();
-      setIsPlaying(true);
-    } else {
-      audioRef.current.pause();
+    const handleEnded = () => {
       setIsPlaying(false);
+      setCurrentWordIndex(-1);
+    };
+
+    const handleError = () => {
+      onError('Errore durante la riproduzione');
+      setIsPlaying(false);
+    };
+
+    audio.addEventListener('timeupdate', handleTimeUpdate);
+    audio.addEventListener('ended', handleEnded);
+    audio.addEventListener('error', handleError);
+
+    return () => {
+      audio.removeEventListener('timeupdate', handleTimeUpdate);
+      audio.removeEventListener('ended', handleEnded);
+      audio.removeEventListener('error', handleError);
+      audio.pause();
+    };
+  }, [audioUrl, words.length, onError]);
+
+  const togglePlayback = async () => {
+    if (!audioRef.current) return;
+    try {
+      if (isPlaying) {
+        await audioRef.current.pause();
+      } else {
+        await audioRef.current.play();
+      }
+      setIsPlaying(!isPlaying);
+    } catch (err) {
+      console.error('Playback error:', err);
+      onError('Impossibile avviare la riproduzione');
     }
-  } catch (err) {
-    console.error('Playback error:', err);
-    onError('Impossibile avviare la riproduzione');
-  }
-};  
+  };
 
   const handleStop = () => {
     if (audioRef.current) {
@@ -261,7 +287,6 @@ const togglePlayback = async () => {
     </div>
   );
 };
-
 // --- PAGINA SINGOLA POESIA ---
 const PoetryPage = ({ poesia, onBack }: { poesia: any; onBack: () => void }) => {
   const [audioUrl, setAudioUrl] = useState<string | null>(poesia.audio_url || null);
