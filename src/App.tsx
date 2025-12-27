@@ -129,7 +129,8 @@ function KeyValueBlock({ data }: { data?: any }) {
   );
 }
 
-// --- AUDIO PLAYER CON HIGHLIGHT ---
+
+// --- AUDIO PLAYER CON HIGHLIGHT (WIDGET SAFE) ---
 const AudioPlayerWithHighlight = ({
   content,
   audioUrl,
@@ -145,124 +146,120 @@ const AudioPlayerWithHighlight = ({
   const [currentWordIndex, setCurrentWordIndex] = useState(-1);
   const [progress, setProgress] = useState(0);
   const [playbackRate, setPlaybackRate] = useState(1);
+
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const words = content.split(/(\s+)/).filter(word => word.trim().length > 0);
   const wordRefs = useRef<HTMLSpanElement[]>([]);
-  const containerRef = useRef<HTMLDivElement | null>(null);
   const lastScrolledIndex = useRef(-1);
   const scrollCooldown = useRef(false);
 
-  useEffect(() => {
-    const audio = new Audio(audioUrl);
-    audio.preload = 'metadata';
-    audioRef.current = audio;
+  const words = content.split(/(\s+)/).filter(w => w.trim().length > 0);
 
-    const handleTimeUpdate = () => {
-      if (!audioRef.current) return;
-      const currentTime = audioRef.current.currentTime;
-      const duration = audioRef.current.duration || 1;
-      const newProgress = currentTime / duration;
-      setProgress(newProgress);
+  // 🔥 CREA + PLAY SOLO SU GESTO UTENTE (Safari safe)
+  const togglePlayback = async () => {
+    try {
+      if (!audioRef.current) {
+        const audio = document.createElement('audio');
+        audio.src = audioUrl;
+        audio.preload = 'auto';
+        audio.crossOrigin = 'anonymous';
+        audio.playbackRate = playbackRate;
 
-      const wordIndex = Math.floor(newProgress * words.length);
-      setCurrentWordIndex(Math.min(wordIndex, words.length - 1));
+        audio.addEventListener('timeupdate', () => {
+          const duration = audio.duration || 1;
+          const p = audio.currentTime / duration;
+          setProgress(p);
 
-      if (
-        wordRefs.current[wordIndex] &&
-        wordIndex !== lastScrolledIndex.current &&
-        !scrollCooldown.current
-      ) {
-        scrollCooldown.current = true;
-        lastScrolledIndex.current = wordIndex;
+          const index = Math.floor(p * words.length);
+          const safeIndex = Math.min(index, words.length - 1);
+          setCurrentWordIndex(safeIndex);
 
-        wordRefs.current[wordIndex]?.scrollIntoView({
-          behavior: 'smooth',
-          block: 'center'
+          if (
+            wordRefs.current[safeIndex] &&
+            safeIndex !== lastScrolledIndex.current &&
+            !scrollCooldown.current
+          ) {
+            scrollCooldown.current = true;
+            lastScrolledIndex.current = safeIndex;
+
+            wordRefs.current[safeIndex]?.scrollIntoView({
+              behavior: 'smooth',
+              block: 'center'
+            });
+
+            setTimeout(() => {
+              scrollCooldown.current = false;
+            }, 300);
+          }
         });
 
-        setTimeout(() => {
-          scrollCooldown.current = false;
-        }, 300);
+        audio.addEventListener('ended', () => {
+          setIsPlaying(false);
+          setCurrentWordIndex(-1);
+          setProgress(0);
+        });
+
+        audio.addEventListener('error', () => {
+          onError('Errore durante la riproduzione audio');
+          setIsPlaying(false);
+        });
+
+        audioRef.current = audio;
+      }
+
+      if (audioRef.current.paused) {
+        await audioRef.current.play();
+        setIsPlaying(true);
+      } else {
+        audioRef.current.pause();
+        setIsPlaying(false);
+      }
+    } catch (err) {
+      console.error('[KARAOKE PLAYBACK ERROR]', err);
+      onError('Riproduzione bloccata dal browser');
+    }
+  };
+
+  // 🛑 STOP
+  const handleStop = () => {
+    if (!audioRef.current) return;
+    audioRef.current.pause();
+    audioRef.current.currentTime = 0;
+    setIsPlaying(false);
+    setCurrentWordIndex(-1);
+    setProgress(0);
+  };
+
+  // ⚡ SPEED
+  const handleSpeedChange = (speed: number) => {
+    setPlaybackRate(speed);
+    if (audioRef.current) {
+      audioRef.current.playbackRate = speed;
+    }
+  };
+
+  // 🧹 CLEANUP
+  useEffect(() => {
+    return () => {
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.src = '';
+        audioRef.current = null;
       }
     };
+  }, []);
 
-    const handleEnded = () => {
-      setIsPlaying(false);
-      setCurrentWordIndex(-1);
-    };
-
-    const handleError = () => {
-      onError('Errore durante la riproduzione');
-      setIsPlaying(false);
-    };
-
-    audio.addEventListener('timeupdate', handleTimeUpdate);
-    audio.addEventListener('ended', handleEnded);
-    audio.addEventListener('error', handleError);
-
-    return () => {
-      audio.removeEventListener('timeupdate', handleTimeUpdate);
-      audio.removeEventListener('ended', handleEnded);
-      audio.removeEventListener('error', handleError);
-      audio.pause();
-    };
-  }, [audioUrl, words.length, onError]);
-
-  const togglePlayback = async () => {
-  try {
-    // 🔥 AUDIO CREATO SOLO QUI
-    if (!audioRef.current) {
-      const audio = document.createElement('audio');
-      audio.src = audioUrl;
-      audio.preload = 'auto';
-      audio.crossOrigin = 'anonymous';
-
-      audio.addEventListener('timeupdate', () => {
-        const duration = audio.duration || 1;
-        const progress = audio.currentTime / duration;
-        setProgress(progress);
-
-        const index = Math.floor(progress * words.length);
-        setCurrentWordIndex(Math.min(index, words.length - 1));
-      });
-
-      audio.addEventListener('ended', () => {
-        setIsPlaying(false);
-        setCurrentWordIndex(-1);
-      });
-
-      audio.addEventListener('error', () => {
-        onError('Errore audio');
-        setIsPlaying(false);
-      });
-
-      audioRef.current = audio;
-    }
-
-    // 🔥 PLAY SEMPRE QUI
-    if (audioRef.current.paused) {
-      await audioRef.current.play();
-      setIsPlaying(true);
-    } else {
-      audioRef.current.pause();
-      setIsPlaying(false);
-    }
-  } catch (e) {
-    console.error('[WIDGET KARAOKE ERROR]', e);
-    onError('Playback bloccato dal browser');
-  }
-};
-  
   return (
-    <div className="audio-player-modal" ref={containerRef}>
+    <div className="audio-player-modal">
       <div className="audio-controls">
         <button onClick={togglePlayback} className="play-button">
           {isPlaying ? <FaPause /> : <FaPlay />}
           {isPlaying ? ' Pausa' : ' Riproduci'}
         </button>
+
         <button onClick={handleStop} className="stop-button">
           <FaStop /> Stop
         </button>
+
         <div className="speed-controls">
           <span>Velocità:</span>
           {[0.5, 0.75, 1, 1.25, 1.5].map(speed => (
@@ -275,13 +272,19 @@ const AudioPlayerWithHighlight = ({
             </button>
           ))}
         </div>
+
         <div className="progress-bar">
-          <div className="progress-fill" style={{ width: `${progress * 100}%` }} />
+          <div
+            className="progress-fill"
+            style={{ width: `${progress * 100}%` }}
+          />
         </div>
+
         <button onClick={onClose} className="back-button">
           Torna indietro
         </button>
       </div>
+
       <div className="content-highlight">
         {words.map((word, index) => (
           <span
@@ -289,9 +292,9 @@ const AudioPlayerWithHighlight = ({
             ref={el => {
               if (el) wordRefs.current[index] = el;
             }}
-            className={`word ${currentWordIndex === index ? 'highlight' : ''} ${
-              Math.abs(currentWordIndex - index) < 3 ? 'glow' : ''
-            }`}
+            className={`word ${
+              currentWordIndex === index ? 'highlight' : ''
+            } ${Math.abs(currentWordIndex - index) < 3 ? 'glow' : ''}`}
           >
             {word}
           </span>
@@ -300,6 +303,9 @@ const AudioPlayerWithHighlight = ({
     </div>
   );
 };
+
+
+
 // --- PAGINA SINGOLA POESIA ---
 const PoetryPage = ({ poesia, onBack }: { poesia: any; onBack: () => void }) => {
   const [audioUrl, setAudioUrl] = useState<string | null>(poesia.audio_url || null);
