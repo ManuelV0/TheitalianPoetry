@@ -152,50 +152,6 @@ const AudioPlayerWithHighlight = ({
   const lastScrolledIndex = useRef(-1);
   const scrollCooldown = useRef(false);
 
-
-  const togglePlayback = async () => {
-  try {
-    if (!audioRef.current) {
-      const audio = document.createElement('audio');
-      audio.src = audioUrl;
-      audio.preload = 'auto';
-      audio.crossOrigin = 'anonymous';
-
-      audio.addEventListener('timeupdate', () => {
-        const duration = audio.duration || 1;
-        const progress = audio.currentTime / duration;
-        setProgress(progress);
-
-        const index = Math.floor(progress * words.length);
-        setCurrentWordIndex(Math.min(index, words.length - 1));
-      });
-
-      audio.addEventListener('ended', () => {
-        setIsPlaying(false);
-        setCurrentWordIndex(-1);
-      });
-
-      audio.addEventListener('error', () => {
-        onError('Errore audio');
-        setIsPlaying(false);
-      });
-
-      audioRef.current = audio;
-    }
-
-    if (audioRef.current.paused) {
-      await audioRef.current.play();
-      setIsPlaying(true);
-    } else {
-      audioRef.current.pause();
-      setIsPlaying(false);
-    }
-  } catch (err) {
-    console.error('[KARAOKE PLAY ERROR]', err);
-    onError('Impossibile avviare la riproduzione');
-  }
-};
-
   
 const togglePlayback = async () => {
   try {
