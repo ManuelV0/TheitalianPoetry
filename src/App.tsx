@@ -130,7 +130,7 @@ function KeyValueBlock({ data }: { data?: any }) {
 }
 
 
-// --- AUDIO PLAYER CON HIGHLIGHT (WIDGET SAFE) ---
+// --- AUDIO PLAYER CON HIGHLIGHT (IFRAME + SAFARI SAFE) ---
 const AudioPlayerWithHighlight = ({
   content,
   audioUrl,
@@ -148,38 +148,25 @@ const AudioPlayerWithHighlight = ({
   const [playbackRate, setPlaybackRate] = useState(1);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const audioBlobUrlRef = useRef<string | null>(null);
-
-  const words = useMemo(
-    () => content.split(/\s+/).filter(Boolean),
-    [content]
-  );
-
   const wordRefs = useRef<HTMLSpanElement[]>([]);
   const lastScrolledIndex = useRef(-1);
   const scrollCooldown = useRef(false);
 
-  // 🔒 carica audio come blob (CORS + Safari safe)
-  const loadAudioAsBlob = async (url: string): Promise<string> => {
-    const res = await fetch(`${url}?ts=${Date.now()}`, {
-      mode: 'cors',
-      cache: 'no-store'
-    });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const blob = await res.blob();
-    return URL.createObjectURL(blob);
-  };
+  const words = useMemo(
+    () => content.split(/(\s+)/).filter(w => w.trim().length > 0),
+    [content]
+  );
 
-  const ensureAudio = async () => {
+  // 🔒 CREA AUDIO SOLO SU GESTO UTENTE
+  const ensureAudio = () => {
     if (audioRef.current) return audioRef.current;
 
-    const blobUrl = await loadAudioAsBlob(audioUrl);
-    audioBlobUrlRef.current = blobUrl;
-
     const audio = document.createElement('audio');
-    audio.src = blobUrl;
+    audio.src = audioUrl;
     audio.preload = 'auto';
-    audio.playbackRate = playbackRate;
+    audio.crossOrigin = 'anonymous';
+    audio.playsInline = true; // iOS
+    audioRef.current = audio;
 
     audio.addEventListener('timeupdate', () => {
       const duration = audio.duration || 1;
@@ -187,17 +174,18 @@ const AudioPlayerWithHighlight = ({
       setProgress(p);
 
       const index = Math.floor(p * words.length);
-      setCurrentWordIndex(Math.min(index, words.length - 1));
+      const safeIndex = Math.min(index, words.length - 1);
+      setCurrentWordIndex(safeIndex);
 
       if (
-        wordRefs.current[index] &&
-        index !== lastScrolledIndex.current &&
+        wordRefs.current[safeIndex] &&
+        safeIndex !== lastScrolledIndex.current &&
         !scrollCooldown.current
       ) {
         scrollCooldown.current = true;
-        lastScrolledIndex.current = index;
+        lastScrolledIndex.current = safeIndex;
 
-        wordRefs.current[index].scrollIntoView({
+        wordRefs.current[safeIndex].scrollIntoView({
           behavior: 'smooth',
           block: 'center'
         });
@@ -215,40 +203,46 @@ const AudioPlayerWithHighlight = ({
     });
 
     audio.addEventListener('error', () => {
-      onError('Errore durante la riproduzione audio');
       setIsPlaying(false);
+      onError('Errore durante la riproduzione audio');
     });
 
-    audioRef.current = audio;
     return audio;
   };
 
+  // ▶️ PLAY / PAUSE — SOLO DA CLICK
   const togglePlayback = async () => {
     try {
-      const audio = await ensureAudio();
+      const audio = ensureAudio();
+      audio.playbackRate = playbackRate;
 
       if (audio.paused) {
-        await audio.play();
+        await audio.play(); // CONSENTITO solo se iframe allow="autoplay"
         setIsPlaying(true);
       } else {
         audio.pause();
         setIsPlaying(false);
       }
     } catch (e) {
-      console.error('[WIDGET KARAOKE]', e);
+      console.error('[KARAOKE PLAYBACK ERROR]', e);
       onError('Playback bloccato dal browser');
     }
   };
 
+  // ⏹ STOP
   const handleStop = () => {
-    if (!audioRef.current) return;
-    audioRef.current.pause();
-    audioRef.current.currentTime = 0;
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    audio.pause();
+    audio.currentTime = 0;
+
     setIsPlaying(false);
     setCurrentWordIndex(-1);
     setProgress(0);
   };
 
+  // ⚡ SPEED
   const handleSpeedChange = (speed: number) => {
     setPlaybackRate(speed);
     if (audioRef.current) {
@@ -256,15 +250,14 @@ const AudioPlayerWithHighlight = ({
     }
   };
 
+  // 🧹 CLEANUP
   useEffect(() => {
     return () => {
       if (audioRef.current) {
         audioRef.current.pause();
+        audioRef.current.src = '';
+        audioRef.current.load();
         audioRef.current = null;
-      }
-      if (audioBlobUrlRef.current) {
-        URL.revokeObjectURL(audioBlobUrlRef.current);
-        audioBlobUrlRef.current = null;
       }
     };
   }, []);
@@ -283,15 +276,13 @@ const AudioPlayerWithHighlight = ({
 
         <div className="speed-controls">
           <span>Velocità:</span>
-          {[0.75, 1, 1.25, 1.5].map(speed => (
+          {[0.75, 1, 1.25, 1.5].map(s => (
             <button
-              key={speed}
-              onClick={() => handleSpeedChange(speed)}
-              className={`speed-button ${
-                playbackRate === speed ? 'active' : ''
-              }`}
+              key={s}
+              onClick={() => handleSpeedChange(s)}
+              className={`speed-button ${playbackRate === s ? 'active' : ''}`}
             >
-              {speed}x
+              {s}x
             </button>
           ))}
         </div>
@@ -309,15 +300,15 @@ const AudioPlayerWithHighlight = ({
       </div>
 
       <div className="content-highlight">
-        {words.map((word, index) => (
+        {words.map((word, i) => (
           <span
-            key={index}
+            key={i}
             ref={el => {
-              if (el) wordRefs.current[index] = el;
+              if (el) wordRefs.current[i] = el;
             }}
             className={`word ${
-              currentWordIndex === index ? 'highlight' : ''
-            } ${Math.abs(currentWordIndex - index) < 3 ? 'glow' : ''}`}
+              i === currentWordIndex ? 'highlight' : ''
+            } ${Math.abs(i - currentWordIndex) < 3 ? 'glow' : ''}`}
           >
             {word}
           </span>
