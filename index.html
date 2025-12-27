@@ -4,51 +4,24 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Poetry AI</title>
-    <link rel="icon" href="/favicon.ico" />
-
-    <style>
-      :root {
-        --font: "Helvetica Neue", sans-serif;
-        --bg: #fdfaf6;
-        --text: #1a1a1a;
-        --primary: #6a4c93;
-        --secondary: #e0c3fc;
-        --card: #ffffff;
-        --shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-      }
-
-      body {
-        margin: 0;
-        font-family: var(--font);
-        background: var(--bg);
-        color: var(--text);
-        min-height: 100vh;
-      }
-
-      #root {
-        max-width: 900px;
-        margin: 0 auto;
-        padding: 2rem;
-        box-sizing: border-box;
-      }
-    </style>
   </head>
 
   <body>
-    <!-- ROOT REACT -->
-    <div id="root"></div>
+    <!-- root reale -->
+    <div id="poetry-root"></div>
 
-    <!-- MOUNT MANUALE DELL'APP -->
     <script type="module">
-      import { mount } from "/src/index.tsx";
+      import '/src/index.tsx';
 
-      const root = document.getElementById("root");
-
-      if (root) {
-        mount(root);
-      } else {
-        console.error("Root element non trovato");
-      }
+      window.addEventListener('DOMContentLoaded', () => {
+        if (window.MyPoetryApp) {
+          window.MyPoetryApp.mount(
+            document.getElementById('poetry-root')
+          );
+        } else {
+          console.error('MyPoetryApp non trovato');
+        }
+      });
     </script>
   </body>
 </html>
