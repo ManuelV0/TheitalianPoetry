@@ -196,6 +196,49 @@ const AudioPlayerWithHighlight = ({
   }
 };
 
+const togglePlayback = async () => {
+  try {
+    // Crea l'audio SOLO su gesto utente (Safari-safe)
+    if (!audioRef.current) {
+      const audio = new Audio(audioUrl);
+      audio.preload = 'metadata';
+      audioRef.current = audio;
+
+      audio.addEventListener('timeupdate', () => {
+        if (!audioRef.current) return;
+
+        const currentTime = audioRef.current.currentTime;
+        const duration = audioRef.current.duration || 1;
+        const progress = currentTime / duration;
+        setProgress(progress);
+
+        const wordIndex = Math.floor(progress * words.length);
+        setCurrentWordIndex(Math.min(wordIndex, words.length - 1));
+      });
+
+      audio.addEventListener('ended', () => {
+        setIsPlaying(false);
+        setCurrentWordIndex(-1);
+      });
+
+      audio.addEventListener('error', () => {
+        onError('Errore durante la riproduzione');
+        setIsPlaying(false);
+      });
+    }
+
+    if (audioRef.current.paused) {
+      await audioRef.current.play();
+      setIsPlaying(true);
+    } else {
+      audioRef.current.pause();
+      setIsPlaying(false);
+    }
+  } catch (err) {
+    console.error('Playback error:', err);
+    onError('Impossibile avviare la riproduzione');
+  }
+};  
 
   const handleStop = () => {
     if (audioRef.current) {
