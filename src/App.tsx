@@ -5,7 +5,7 @@
 import { supabase } from './lib/supabaseClient';
 import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { FaArrowLeft, FaPlay, FaPause, FaStop, FaDownload } from 'react-icons/fa';
-import './index.css'
+import './widget.css'
 
 // --- UTILS ---
 function isIOSorSafari() {
