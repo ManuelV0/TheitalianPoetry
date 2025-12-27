@@ -7,6 +7,9 @@ import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react'
 import { FaArrowLeft, FaPlay, FaPause, FaStop, FaDownload } from 'react-icons/fa';
 import './widget.css'
 
+const MATCH_POESIE_API =
+  'https://poetry.theitalianpoetryproject.com/.netlify/functions/match-poesie';
+
 // --- UTILS ---
 function isIOSorSafari() {
   if (typeof navigator === "undefined") return false;
