@@ -196,21 +196,6 @@ const AudioPlayerWithHighlight = ({
   }
 };
 
-  
-  const togglePlayback = async () => {
-    if (!audioRef.current) return;
-    try {
-      if (isPlaying) {
-        await audioRef.current.pause();
-      } else {
-        await audioRef.current.play();
-      }
-      setIsPlaying(!isPlaying);
-    } catch (err) {
-      console.error('Playback error:', err);
-      onError('Impossibile avviare la riproduzione');
-    }
-  };
 
   const handleStop = () => {
     if (audioRef.current) {
