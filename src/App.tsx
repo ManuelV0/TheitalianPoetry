@@ -1,11 +1,7 @@
-
-// App.tsx (top of the file)
-
-// Inizio modifica/aggiunta - aggiunto useMemo all'import
 import { supabase } from './lib/supabaseClient';
 import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { FaArrowLeft, FaPlay, FaPause, FaStop, FaDownload } from 'react-icons/fa';
-import './widget.css'
+import './index.css';
 
 // --- UTILS ---
 function isIOSorSafari() {
@@ -16,7 +12,6 @@ function isIOSorSafari() {
 
 const isNonEmptyObject = (v: any) => v && typeof v === 'object' && !Array.isArray(v) && Object.keys(v).length > 0;
 
-// Inizio modifica/aggiunta - tipo per poesie consigliate
 type RecommendedPoem = {
   id: string;
   title: string;
@@ -24,7 +19,6 @@ type RecommendedPoem = {
   similarity: number | null;
 };
 
-// Inizio modifica/aggiunta - calcolo statistiche poesia
 const calculatePoetryStats = (text: string) => {
   const sanitized = (text ?? '').trim();
   if (!sanitized) {
@@ -54,7 +48,6 @@ const calculatePoetryStats = (text: string) => {
   };
 };
 
-// Inizio modifica/aggiunta - formattazione tempo di lettura
 const formatReadingTime = (seconds: number) => {
   if (!Number.isFinite(seconds) || seconds <= 0) {
     return 'Non stimabile';
@@ -81,7 +74,6 @@ function SafeList({ items }: { items?: any[] }) {
         if (typeof x === 'string' || typeof x === 'number' || typeof x === 'boolean') {
           return <li key={i}>{String(x)}</li>;
         }
-        // Oggetto generico -> pretty print minimale
         return <li key={i}><code className="whitespace-pre-wrap break-words">{JSON.stringify(x)}</code></li>;
       })}
     </ul>
@@ -104,7 +96,7 @@ function CitazioniList({ items }: { items?: string[] }) {
   );
 }
 
-// Render per coppie chiave→valore (quando OpenAI ti manda oggetti tipo { ritmo, lessico, sintassi } o { sintesi, valutazione_finale })
+// Render per coppie chiave→valore
 function KeyValueBlock({ data }: { data?: any }) {
   if (!isNonEmptyObject(data)) return null;
   return (
@@ -290,18 +282,16 @@ const AudioPlayerWithHighlight = ({
 
 // --- PAGINA SINGOLA POESIA ---
 const PoetryPage = ({ poesia, onBack }: { poesia: any; onBack: () => void }) => {
-  const audioUrl = poesia.audio_url || null;
+  const [audioUrl, setAudioUrl] = useState<string | null>(poesia.audio_url || null);
   const [audioBlobUrl, setAudioBlobUrl] = useState<string | null>(null);
+  const [audioStatus, setAudioStatus] = useState<'non_generato' | 'generato'>(
+    poesia.audio_url ? 'generato' : 'non_generato'
+  );
   const [audioError, setAudioError] = useState<string | null>(null);
   const [showAudioPlayer, setShowAudioPlayer] = useState(false);
-  // Inizio modifica/aggiunta - stato per feedback copia contenuto
   const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'error'>('idle');
-  // Inizio modifica/aggiunta - stato per poesie consigliate
-  const [recommendedMatches, setRecommendedMatches] = useState<RecommendedPoem[]>([]);
-  const [recommendedStatus, setRecommendedStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
-  const [recommendedError, setRecommendedError] = useState<string | null>(null);
+  const [compatibilityInfoVisible, setCompatibilityInfoVisible] = useState(false);
 
-  // Parse analisi (robusto)
   const parseJSON = (x: any) => {
     try {
       return typeof x === 'string' ? JSON.parse(x) : x;
@@ -311,108 +301,77 @@ const PoetryPage = ({ poesia, onBack }: { poesia: any; onBack: () => void }) => 
   };
   const analisiPsico = parseJSON(poesia.analisi_psicologica);
   const analisiLett = parseJSON(poesia.analisi_letteraria);
-  // Inizio modifica/aggiunta - calcolo memoizzato delle statistiche della poesia
   const poesiaStats = useMemo(() => calculatePoetryStats(poesia.content || ''), [poesia.content]);
 
-  // Inizio modifica/aggiunta - reset stato copia dopo timeout
   useEffect(() => {
     if (copyStatus === 'idle') return;
     const timeout = setTimeout(() => setCopyStatus('idle'), 2000);
     return () => clearTimeout(timeout);
   }, [copyStatus]);
 
-  // Inizio modifica/aggiunta - recupero poesie consigliate
   useEffect(() => {
-    let isActive = true;
+    setAudioUrl(poesia.audio_url || null);
+    setAudioStatus(poesia.audio_url ? 'generato' : 'non_generato');
+    setAudioError(null);
+    setAudioBlobUrl(prev => {
+      if (prev && typeof URL !== 'undefined') {
+        URL.revokeObjectURL(prev);
+      }
+      return null;
+    });
+  }, [poesia.audio_url, poesia.id]);
 
-    setRecommendedMatches([]);
-    setRecommendedError(null);
-    setRecommendedStatus('idle');
+  const recommendedMatches = useMemo<RecommendedPoem[]>(() => {
+    const rawCandidates =
+      (poesia as any)?.recommended_matches ??
+      (poesia as any)?.compatibility_matches ??
+      (poesia as any)?.matches ??
+      null;
 
-    const poesiaIdValue = poesia?.id;
-    if (poesiaIdValue === undefined || poesiaIdValue === null) {
-      return () => {
-        isActive = false;
-      };
+    if (!rawCandidates) return [];
+
+    let parsed = rawCandidates;
+    if (typeof rawCandidates === 'string') {
+      try {
+        parsed = JSON.parse(rawCandidates);
+      } catch (err) {
+        console.warn('Impossibile interpretare i suggerimenti di compatibilità', err);
+        return [];
+      }
     }
 
-    const fetchRecommendations = async () => {
-      setRecommendedStatus('loading');
-      try {
-        const response = await fetch('/.netlify/functions/match-poesie', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ poesia_id: poesiaIdValue })
-        });
+    if (!Array.isArray(parsed)) return [];
 
-        if (!response.ok) {
-          const errText = await response.text();
-          throw new Error(errText || `HTTP ${response.status}`);
-        }
+    return parsed
+      .map((match: any, index: number) => {
+        if (!match) return null;
 
-        const payload = await response.json();
-        const matchesArray = Array.isArray(payload?.matches) ? payload.matches : [];
-        const currentPoetryId = String(poesiaIdValue);
+        const rawId = match.id ?? index;
+        const id =
+          typeof rawId === 'string'
+            ? rawId
+            : typeof rawId === 'number'
+            ? String(rawId)
+            : String(index);
 
-        const sanitized = matchesArray
-          .map((match: any) => {
-            if (!match) return null;
+        const title =
+          typeof match.title === 'string' && match.title.trim().length > 0
+            ? match.title.trim()
+            : 'Senza titolo';
 
-            const rawId = match.id;
-            const id =
-              typeof rawId === 'string'
-                ? rawId
-                : typeof rawId === 'number'
-                ? String(rawId)
-                : null;
+        const authorName =
+          typeof match.author_name === 'string' && match.author_name.trim().length > 0
+            ? match.author_name.trim()
+            : null;
 
-            if (!id || id === currentPoetryId) return null;
+        const similarity =
+          typeof match.similarity === 'number' ? match.similarity : null;
 
-            const title =
-              typeof match.title === 'string' && match.title.trim().length > 0
-                ? match.title.trim()
-                : 'Senza titolo';
+        return { id, title, author_name: authorName, similarity } as RecommendedPoem;
+      })
+      .filter((item): item is RecommendedPoem => Boolean(item));
+  }, [poesia]);
 
-            const authorName =
-              typeof match.author_name === 'string' && match.author_name.trim().length > 0
-                ? match.author_name.trim()
-                : null;
-
-            const similarity =
-              typeof match.similarity === 'number' ? match.similarity : null;
-
-            return {
-              id,
-              title,
-              author_name: authorName,
-              similarity
-            } as RecommendedPoem;
-          })
-          .filter((item: RecommendedPoem | null): item is RecommendedPoem => Boolean(item));
-
-        if (isActive) {
-          setRecommendedMatches(sanitized);
-          setRecommendedStatus('success');
-        }
-      } catch (error) {
-        console.error('Errore match poesie:', error);
-        if (isActive) {
-          setRecommendedStatus('error');
-          setRecommendedError('Impossibile recuperare poesie consigliate.');
-        }
-      }
-    };
-
-    fetchRecommendations();
-
-    return () => {
-      isActive = false;
-    };
-  }, [poesia.id]);
-
-  // Inizio modifica/aggiunta - gestione copia del contenuto della poesia
   const handleCopyContent = useCallback(async () => {
     const text = poesia.content || '';
     if (!text.trim()) {
@@ -443,40 +402,22 @@ const PoetryPage = ({ poesia, onBack }: { poesia: any; onBack: () => void }) => 
     }
   }, [poesia.content]);
 
-  // Inizio modifica/aggiunta - utility per liberare il blob audio
-  const clearAudioBlob = useCallback(() => {
-    setAudioBlobUrl(prev => {
-      if (prev) {
-        URL.revokeObjectURL(prev);
-      }
-      return null;
-    });
-  }, []);
-
-  // Inizio modifica/aggiunta - reset audio ad ogni cambio poesia
-  useEffect(() => {
-    clearAudioBlob();
-    setAudioError(null);
-  }, [poesia.id, clearAudioBlob]);
-
-  // iOS/Safari: scarico il blob per autoplay policy
   const fetchAudioAsBlob = useCallback(async (url: string) => {
+    if (typeof window === 'undefined' || typeof URL === 'undefined') return;
     setAudioError(null);
     try {
-      const res = await fetch(`${url}?ts=${Date.now()}`, { cache: 'no-store' });
+      const res = await fetch(`${url}?ts=${Date.now()}`, { cache: 'no-store', mode: 'cors' });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const ct = res.headers.get('content-type');
       if (!ct?.includes('audio/')) throw new Error(`Invalid MIME type: ${ct}`);
       const blob = await res.blob();
       const objectUrl = URL.createObjectURL(blob);
       setAudioBlobUrl(prev => {
-        if (prev) {
-          URL.revokeObjectURL(prev);
-        }
+        if (prev) URL.revokeObjectURL(prev);
         return objectUrl;
       });
     } catch (err) {
-      console.error('Errore nel caricamento audio:', err);
+      console.error('Errore nel caricamento audio', err);
       setAudioError('Errore nel caricamento audio');
     }
   }, []);
@@ -488,13 +429,19 @@ const PoetryPage = ({ poesia, onBack }: { poesia: any; onBack: () => void }) => 
 
   useEffect(() => {
     return () => {
-      if (audioBlobUrl) {
+      if (audioBlobUrl && typeof URL !== 'undefined') {
         URL.revokeObjectURL(audioBlobUrl);
       }
     };
   }, [audioBlobUrl]);
 
-  const audioStatusText = audioUrl ? 'Audio disponibile' : 'Audio non disponibile';
+  const statoTesto =
+    audioStatus === 'generato'
+      ? 'Audio disponibile per la riproduzione'
+      : 'Audio non disponibile in questa vista';
+
+  const copyFeedbackVisible = copyStatus !== 'idle';
+  const effectiveAudioUrl = isIOSorSafari() && audioBlobUrl ? audioBlobUrl : audioUrl || '';
 
   // ----- RENDER ANALISI: PSICO DETTAGLIATA -----
   const renderAnalisiPsicoDettagliata = () => {
@@ -507,7 +454,6 @@ const PoetryPage = ({ poesia, onBack }: { poesia: any; onBack: () => void }) => 
 
     if (!hasDetailed) return null;
 
-    // render di meccanismi come [{nome, evidenze:[]}] etc.
     const renderNamedList = (arr?: any[]) => {
       if (!Array.isArray(arr) || arr.length === 0) return <p className="text-gray-500 italic">N/A</p>;
       return (
@@ -625,7 +571,6 @@ const PoetryPage = ({ poesia, onBack }: { poesia: any; onBack: () => void }) => 
 
     return (
       <>
-        {/* 1. Analisi Tematica/Filosofica */}
         {isNonEmptyObject(temi) && (
           <section className="analysis-section">
             <h2>Analisi Tematica e Filosofica</h2>
@@ -664,12 +609,10 @@ const PoetryPage = ({ poesia, onBack }: { poesia: any; onBack: () => void }) => 
           </section>
         )}
 
-        {/* 2-3. Stilistica/Narratologia (gestione oggetti tipo {ritmo, lessico, sintassi}) */}
         {isNonEmptyObject(stile) && (
           <section className="analysis-section">
             <h2>Analisi Stilistica e Narratologica</h2>
 
-            {/* Se "stile" è stringa -> mostra. Se è oggetto (ritmo/lessico/sintassi) -> KeyValueBlock */}
             {stile?.stile && typeof stile.stile === 'string' ? (
               <>
                 <h4 className="font-semibold">Stile di scrittura</h4>
@@ -734,7 +677,6 @@ const PoetryPage = ({ poesia, onBack }: { poesia: any; onBack: () => void }) => 
           </section>
         )}
 
-        {/* 4. Contesto */}
         {isNonEmptyObject(contesto) && (
           <section className="analysis-section">
             <h2>Contesto Storico e Biografico</h2>
@@ -753,7 +695,6 @@ const PoetryPage = ({ poesia, onBack }: { poesia: any; onBack: () => void }) => 
           </section>
         )}
 
-        {/* 5. Sintesi/Conclusione (può essere stringa o oggetto {sintesi, valutazione_finale}) */}
         {sintesi && (
           <section className="analysis-section">
             <h2>Sintesi Critica e Conclusione</h2>
@@ -786,13 +727,10 @@ const PoetryPage = ({ poesia, onBack }: { poesia: any; onBack: () => void }) => 
           <pre>{poesia.content}</pre>
         </div>
 
-        {/* AUDIO */}
         <div className="audio-section">
-          <div className="audio-status">
-            {audioStatusText}
-          </div>
+          <div className="audio-status">{statoTesto}</div>
 
-          {audioUrl && (
+          {audioStatus === 'generato' && audioUrl && (
             <div className="audio-options">
               <button
                 onClick={() => setShowAudioPlayer(true)}
@@ -809,7 +747,6 @@ const PoetryPage = ({ poesia, onBack }: { poesia: any; onBack: () => void }) => 
           {audioError && <div className="audio-error">{audioError}</div>}
         </div>
 
-        {/* Inizio modifica/aggiunta - sezione strumenti e statistiche della poesia */}
         <section className="poetry-tools" aria-label="Statistiche e strumenti poesia">
           <div className="poetry-stats-card">
             <h2>Statistiche rapide</h2>
@@ -831,49 +768,55 @@ const PoetryPage = ({ poesia, onBack }: { poesia: any; onBack: () => void }) => 
             </ul>
           </div>
           <div className="poetry-actions">
-            <button
-              type="button"
-              onClick={handleCopyContent}
-              className="copy-button"
-              disabled={!poesia.content}
-            >
-              Copia testo
-            </button>
-            <p className="copy-feedback" role="status" aria-live="polite">
-              {copyStatus === 'copied'
-                ? 'Testo copiato negli appunti'
-                : copyStatus === 'error'
-                ? 'Impossibile copiare il testo'
-                : '\u00A0'}
+            <div className="poetry-actions-row">
+              <button
+                type="button"
+                onClick={handleCopyContent}
+                className="copy-button"
+                disabled={!poesia.content}
+                data-state={copyStatus}
+              >
+                Copia testo
+              </button>
+              <p
+                className={`copy-feedback ${copyFeedbackVisible ? 'is-visible' : ''}`}
+                role="status"
+                aria-live="polite"
+              >
+                {copyStatus === 'copied'
+                  ? 'Testo copiato negli appunti'
+                  : copyStatus === 'error'
+                  ? 'Impossibile copiare il testo'
+                  : '\u00A0'}
+              </p>
+            </div>
+            <p className="widget-note">
+              Modalità widget in sola lettura: le funzioni di generazione sono disabilitate.
             </p>
-            <button
-              type="button"
-              className="compatibility-button"
-              disabled
-              title="Disponibile solo nell'applicazione completa"
-            >
-              Cerca compatibilità
-            </button>
           </div>
         </section>
 
-        {/* Inizio modifica/aggiunta - sezione poesie consigliate */}
         <section className="poetry-recommendations" aria-label="Poesie consigliate">
           <h2>Poesie consigliate</h2>
-          {recommendedStatus === 'loading' && (
-            <p className="text-sm text-gray-600">Caricamento suggerimenti…</p>
-          )}
-          {recommendedStatus === 'error' && (
-            <p className="text-sm text-red-600">
-              {recommendedError || 'Impossibile recuperare poesie consigliate.'}
+          <div className="compatibility-actions">
+            <button
+              type="button"
+              className="compatibility-button"
+              onClick={() => setCompatibilityInfoVisible(prev => !prev)}
+              aria-expanded={compatibilityInfoVisible}
+            >
+              Cerca compatibilità
+            </button>
+            <span className="compatibility-badge">Widget read-only</span>
+          </div>
+
+          {compatibilityInfoVisible && (
+            <p className="compatibility-hint">
+              La ricerca di compatibilità attiva è disponibile nell’app principale. In questa vista widget viene mostrato solo quanto già salvato.
             </p>
           )}
-          {recommendedStatus === 'success' && recommendedMatches.length === 0 && (
-            <p className="text-sm text-gray-500 italic">
-              Nessuna poesia consigliata disponibile.
-            </p>
-          )}
-          {recommendedMatches.length > 0 && (
+
+          {recommendedMatches.length > 0 ? (
             <ul className="list-disc list-inside ml-4">
               {recommendedMatches.map(match => (
                 <li key={match.id}>
@@ -881,21 +824,22 @@ const PoetryPage = ({ poesia, onBack }: { poesia: any; onBack: () => void }) => 
                   {match.author_name ? (
                     <span className="text-sm text-gray-600"> — {match.author_name}</span>
                   ) : null}
+                  {typeof match.similarity === 'number' && (
+                    <span className="text-sm text-gray-500"> ({(match.similarity * 100).toFixed(1)}%)</span>
+                  )}
                 </li>
               ))}
             </ul>
+          ) : (
+            <p className="compatibility-description">
+              Suggerimenti dinamici disabilitati in questa modalità di sola lettura. Consulta l’app completa per la ricerca di compatibilità.
+            </p>
           )}
         </section>
 
-        {/* ANALISI */}
         <div className="analysis-sections">
-          {/* Psicologica dettagliata */}
           {renderAnalisiPsicoDettagliata()}
-
-          {/* Letteraria */}
           {renderAnalisiLetteraria()}
-
-          {/* Futurista (se presente dentro analisi_psicologica) */}
           {renderAnalisiFuturista()}
         </div>
       </div>
@@ -903,7 +847,7 @@ const PoetryPage = ({ poesia, onBack }: { poesia: any; onBack: () => void }) => 
       {showAudioPlayer && audioUrl && (
         <AudioPlayerWithHighlight
           content={poesia.content}
-          audioUrl={isIOSorSafari() && audioBlobUrl ? audioBlobUrl : audioUrl}
+          audioUrl={effectiveAudioUrl}
           onClose={() => setShowAudioPlayer(false)}
           onError={setAudioError}
         />
@@ -962,7 +906,6 @@ const App = () => {
     setState(prev => ({ ...prev, selectedPoesia: null }));
   };
 
-  // Inizio modifica/aggiunta - memoizzazione e sanitizzazione filtro poesie
   const poesieFiltrate = useMemo(() => {
     const searchTerm = state.search.trim().toLowerCase();
     if (!searchTerm) return state.poesie;
