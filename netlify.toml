@@ -5,7 +5,7 @@
 [[headers]]
   for = "/*"
   [headers.values]
-    Content-Security-Policy = "
+    Content-Security-Policy = """
       default-src 'self';
       script-src 'self' 'unsafe-inline' 'unsafe-eval'
         https://www.theitalianpoetryproject.com
@@ -20,10 +20,13 @@
         https://poetry.theitalianpoetryproject.com
         https://backend.theitalianpoetryproject.com
         https://*.google-analytics.com;
-      media-src 'self' blob: https://*.supabase.co https://poetry.theitalianpoetryproject.com;
-      frame-ancestors 'self' https://www.theitalianpoetryproject.com https://theitalianpoetryproject.com;
-    "
-
+      media-src 'self' blob:
+        https://*.supabase.co
+        https://poetry.theitalianpoetryproject.com;
+      frame-ancestors 'self'
+        https://www.theitalianpoetryproject.com
+        https://theitalianpoetryproject.com;
+    """
 
 [[headers]]
   for = "/.netlify/functions/*"
