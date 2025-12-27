@@ -148,78 +148,98 @@ const AudioPlayerWithHighlight = ({
   const [playbackRate, setPlaybackRate] = useState(1);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const audioBlobUrlRef = useRef<string | null>(null);
+
+  const words = useMemo(
+    () => content.split(/\s+/).filter(Boolean),
+    [content]
+  );
+
   const wordRefs = useRef<HTMLSpanElement[]>([]);
   const lastScrolledIndex = useRef(-1);
   const scrollCooldown = useRef(false);
 
-  const words = content.split(/(\s+)/).filter(w => w.trim().length > 0);
+  // 🔒 carica audio come blob (CORS + Safari safe)
+  const loadAudioAsBlob = async (url: string): Promise<string> => {
+    const res = await fetch(`${url}?ts=${Date.now()}`, {
+      mode: 'cors',
+      cache: 'no-store'
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const blob = await res.blob();
+    return URL.createObjectURL(blob);
+  };
 
-  // 🔥 CREA + PLAY SOLO SU GESTO UTENTE (Safari safe)
+  const ensureAudio = async () => {
+    if (audioRef.current) return audioRef.current;
+
+    const blobUrl = await loadAudioAsBlob(audioUrl);
+    audioBlobUrlRef.current = blobUrl;
+
+    const audio = document.createElement('audio');
+    audio.src = blobUrl;
+    audio.preload = 'auto';
+    audio.playbackRate = playbackRate;
+
+    audio.addEventListener('timeupdate', () => {
+      const duration = audio.duration || 1;
+      const p = audio.currentTime / duration;
+      setProgress(p);
+
+      const index = Math.floor(p * words.length);
+      setCurrentWordIndex(Math.min(index, words.length - 1));
+
+      if (
+        wordRefs.current[index] &&
+        index !== lastScrolledIndex.current &&
+        !scrollCooldown.current
+      ) {
+        scrollCooldown.current = true;
+        lastScrolledIndex.current = index;
+
+        wordRefs.current[index].scrollIntoView({
+          behavior: 'smooth',
+          block: 'center'
+        });
+
+        setTimeout(() => {
+          scrollCooldown.current = false;
+        }, 300);
+      }
+    });
+
+    audio.addEventListener('ended', () => {
+      setIsPlaying(false);
+      setCurrentWordIndex(-1);
+      setProgress(0);
+    });
+
+    audio.addEventListener('error', () => {
+      onError('Errore durante la riproduzione audio');
+      setIsPlaying(false);
+    });
+
+    audioRef.current = audio;
+    return audio;
+  };
+
   const togglePlayback = async () => {
     try {
-      if (!audioRef.current) {
-        const audio = document.createElement('audio');
-        audio.src = audioUrl;
-        audio.preload = 'auto';
-        audio.crossOrigin = 'anonymous';
-        audio.playbackRate = playbackRate;
+      const audio = await ensureAudio();
 
-        audio.addEventListener('timeupdate', () => {
-          const duration = audio.duration || 1;
-          const p = audio.currentTime / duration;
-          setProgress(p);
-
-          const index = Math.floor(p * words.length);
-          const safeIndex = Math.min(index, words.length - 1);
-          setCurrentWordIndex(safeIndex);
-
-          if (
-            wordRefs.current[safeIndex] &&
-            safeIndex !== lastScrolledIndex.current &&
-            !scrollCooldown.current
-          ) {
-            scrollCooldown.current = true;
-            lastScrolledIndex.current = safeIndex;
-
-            wordRefs.current[safeIndex]?.scrollIntoView({
-              behavior: 'smooth',
-              block: 'center'
-            });
-
-            setTimeout(() => {
-              scrollCooldown.current = false;
-            }, 300);
-          }
-        });
-
-        audio.addEventListener('ended', () => {
-          setIsPlaying(false);
-          setCurrentWordIndex(-1);
-          setProgress(0);
-        });
-
-        audio.addEventListener('error', () => {
-          onError('Errore durante la riproduzione audio');
-          setIsPlaying(false);
-        });
-
-        audioRef.current = audio;
-      }
-
-      if (audioRef.current.paused) {
-        await audioRef.current.play();
+      if (audio.paused) {
+        await audio.play();
         setIsPlaying(true);
       } else {
-        audioRef.current.pause();
+        audio.pause();
         setIsPlaying(false);
       }
-    } catch (err) {
-      console.error('[KARAOKE PLAYBACK ERROR]', err);
-      onError('Riproduzione bloccata dal browser');
+    } catch (e) {
+      console.error('[WIDGET KARAOKE]', e);
+      onError('Playback bloccato dal browser');
     }
   };
 
-  // 🛑 STOP
   const handleStop = () => {
     if (!audioRef.current) return;
     audioRef.current.pause();
@@ -229,7 +249,6 @@ const AudioPlayerWithHighlight = ({
     setProgress(0);
   };
 
-  // ⚡ SPEED
   const handleSpeedChange = (speed: number) => {
     setPlaybackRate(speed);
     if (audioRef.current) {
@@ -237,13 +256,15 @@ const AudioPlayerWithHighlight = ({
     }
   };
 
-  // 🧹 CLEANUP
   useEffect(() => {
     return () => {
       if (audioRef.current) {
         audioRef.current.pause();
-        audioRef.current.src = '';
         audioRef.current = null;
+      }
+      if (audioBlobUrlRef.current) {
+        URL.revokeObjectURL(audioBlobUrlRef.current);
+        audioBlobUrlRef.current = null;
       }
     };
   }, []);
@@ -262,11 +283,13 @@ const AudioPlayerWithHighlight = ({
 
         <div className="speed-controls">
           <span>Velocità:</span>
-          {[0.5, 0.75, 1, 1.25, 1.5].map(speed => (
+          {[0.75, 1, 1.25, 1.5].map(speed => (
             <button
               key={speed}
               onClick={() => handleSpeedChange(speed)}
-              className={`speed-button ${playbackRate === speed ? 'active' : ''}`}
+              className={`speed-button ${
+                playbackRate === speed ? 'active' : ''
+              }`}
             >
               {speed}x
             </button>
@@ -303,7 +326,6 @@ const AudioPlayerWithHighlight = ({
     </div>
   );
 };
-
 
 
 // --- PAGINA SINGOLA POESIA ---
