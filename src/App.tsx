@@ -1,10 +1,12 @@
+
+
 // App.tsx (top of the file)
 
 // Inizio modifica/aggiunta - aggiunto useMemo all'import
-import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { supabase } from './lib/supabaseClient';
+import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { FaArrowLeft, FaPlay, FaPause, FaStop, FaDownload } from 'react-icons/fa';
-import './index.css'    
+import './index.css'
 
 // --- CONFIG ENDPOINTS ---
 const AUDIO_API_URL = 'https://poetry.theitalianpoetryproject.com/.netlify/functions/genera-audio';
@@ -17,6 +19,14 @@ function isIOSorSafari() {
 }
 
 const isNonEmptyObject = (v: any) => v && typeof v === 'object' && !Array.isArray(v) && Object.keys(v).length > 0;
+
+// Inizio modifica/aggiunta - tipo per poesie consigliate
+type RecommendedPoem = {
+  id: string;
+  title: string;
+  author_name: string | null;
+  similarity: number | null;
+};
 
 // Inizio modifica/aggiunta - calcolo statistiche poesia
 const calculatePoetryStats = (text: string) => {
@@ -293,6 +303,13 @@ const PoetryPage = ({ poesia, onBack }: { poesia: any; onBack: () => void }) => 
   const [generationStartTime, setGenerationStartTime] = useState<number | null>(null);
   // Inizio modifica/aggiunta - stato per feedback copia contenuto
   const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'error'>('idle');
+  // Inizio modifica/aggiunta - gestione stato forza analisi
+  const [forceAnalysisStatus, setForceAnalysisStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+  const [forceAnalysisMessage, setForceAnalysisMessage] = useState<string | null>(null);
+  // Inizio modifica/aggiunta - stato per poesie consigliate
+  const [recommendedMatches, setRecommendedMatches] = useState<RecommendedPoem[]>([]);
+  const [recommendedStatus, setRecommendedStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+  const [recommendedError, setRecommendedError] = useState<string | null>(null);
 
   // Parse analisi (robusto)
   const parseJSON = (x: any) => {
@@ -313,6 +330,97 @@ const PoetryPage = ({ poesia, onBack }: { poesia: any; onBack: () => void }) => 
     const timeout = setTimeout(() => setCopyStatus('idle'), 2000);
     return () => clearTimeout(timeout);
   }, [copyStatus]);
+
+  // Inizio modifica/aggiunta - recupero poesie consigliate
+  useEffect(() => {
+    let isActive = true;
+
+    setRecommendedMatches([]);
+    setRecommendedError(null);
+    setRecommendedStatus('idle');
+
+    const poesiaIdValue = poesia?.id;
+    if (poesiaIdValue === undefined || poesiaIdValue === null) {
+      return () => {
+        isActive = false;
+      };
+    }
+
+    const fetchRecommendations = async () => {
+      setRecommendedStatus('loading');
+      try {
+        const response = await fetch('/.netlify/functions/match-poesie', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ poesia_id: poesiaIdValue })
+        });
+
+        if (!response.ok) {
+          const errText = await response.text();
+          throw new Error(errText || `HTTP ${response.status}`);
+        }
+
+        const payload = await response.json();
+        const matchesArray = Array.isArray(payload?.matches) ? payload.matches : [];
+        const currentPoetryId = String(poesiaIdValue);
+
+        const sanitized = matchesArray
+          .map((match: any) => {
+            if (!match) return null;
+
+            const rawId = match.id;
+            const id =
+              typeof rawId === 'string'
+                ? rawId
+                : typeof rawId === 'number'
+                ? String(rawId)
+                : null;
+
+            if (!id || id === currentPoetryId) return null;
+
+            const title =
+              typeof match.title === 'string' && match.title.trim().length > 0
+                ? match.title.trim()
+                : 'Senza titolo';
+
+            const authorName =
+              typeof match.author_name === 'string' && match.author_name.trim().length > 0
+                ? match.author_name.trim()
+                : null;
+
+            const similarity =
+              typeof match.similarity === 'number' ? match.similarity : null;
+
+            return {
+              id,
+              title,
+              author_name: authorName,
+              similarity
+            } as RecommendedPoem;
+          })
+          .filter((item: RecommendedPoem | null): item is RecommendedPoem => Boolean(item));
+
+        if (isActive) {
+          setRecommendedMatches(sanitized);
+          setRecommendedStatus('success');
+        }
+      } catch (error) {
+        console.error('Errore match poesie:', error);
+        if (isActive) {
+          setRecommendedStatus('error');
+          setRecommendedError('Impossibile recuperare poesie consigliate.');
+        }
+      }
+    };
+
+    fetchRecommendations();
+
+    return () => {
+      isActive = false;
+    };
+  }, [poesia.id]);
 
   // Timer stima generazione
   // Inizio modifica/aggiunta - gestione timer generazione audio
@@ -368,6 +476,43 @@ const PoetryPage = ({ poesia, onBack }: { poesia: any; onBack: () => void }) => 
       setCopyStatus('error');
     }
   }, [poesia.content]);
+
+  // Inizio modifica/aggiunta - gestione forza analisi manuale
+  const handleForceAnalysis = useCallback(async () => {
+    if (!poesia?.id || !(poesia?.content || '').trim()) {
+      setForceAnalysisStatus('error');
+      setForceAnalysisMessage('Testo non disponibile per generare l’analisi.');
+      return;
+    }
+
+    setForceAnalysisStatus('loading');
+    setForceAnalysisMessage(null);
+
+    try {
+      const response = await fetch('/.netlify/functions/forza-analisi', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          id: poesia.id,
+          content: poesia.content
+        })
+      });
+
+      if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(errText || `HTTP ${response.status}`);
+      }
+
+      setForceAnalysisStatus('success');
+      setForceAnalysisMessage('Analisi forzata avviata. Ricarica la poesia tra qualche istante per vedere gli aggiornamenti.');
+    } catch (error) {
+      console.error('Errore forza-analisi:', error);
+      setForceAnalysisStatus('error');
+      setForceAnalysisMessage('Impossibile avviare l’analisi. Riprova più tardi.');
+    }
+  }, [poesia.id, poesia.content]);
 
   // Se non ho audio_url, provo a generarlo una volta
   useEffect(() => {
@@ -792,7 +937,56 @@ const PoetryPage = ({ poesia, onBack }: { poesia: any; onBack: () => void }) => 
                 ? 'Impossibile copiare il testo'
                 : '\u00A0'}
             </p>
+            <button
+              type="button"
+              onClick={handleForceAnalysis}
+              className="force-analysis-button"
+              disabled={forceAnalysisStatus === 'loading'}
+            >
+              {forceAnalysisStatus === 'loading' ? 'Invio analisi…' : 'Forza nuova analisi'}
+            </button>
+            {forceAnalysisMessage && (
+              <p
+                className={`force-analysis-feedback ${
+                  forceAnalysisStatus === 'error' ? 'text-red-600' : 'text-green-600'
+                }`}
+                role="status"
+                aria-live="polite"
+              >
+                {forceAnalysisMessage}
+              </p>
+            )}
           </div>
+        </section>
+
+        {/* Inizio modifica/aggiunta - sezione poesie consigliate */}
+        <section className="poetry-recommendations" aria-label="Poesie consigliate">
+          <h2>Poesie consigliate</h2>
+          {recommendedStatus === 'loading' && (
+            <p className="text-sm text-gray-600">Caricamento suggerimenti…</p>
+          )}
+          {recommendedStatus === 'error' && (
+            <p className="text-sm text-red-600">
+              {recommendedError || 'Impossibile recuperare poesie consigliate.'}
+            </p>
+          )}
+          {recommendedStatus === 'success' && recommendedMatches.length === 0 && (
+            <p className="text-sm text-gray-500 italic">
+              Nessuna poesia consigliata disponibile.
+            </p>
+          )}
+          {recommendedMatches.length > 0 && (
+            <ul className="list-disc list-inside ml-4">
+              {recommendedMatches.map(match => (
+                <li key={match.id}>
+                  <span className="font-medium">{match.title}</span>
+                  {match.author_name ? (
+                    <span className="text-sm text-gray-600"> — {match.author_name}</span>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          )}
         </section>
 
         {/* ANALISI */}
