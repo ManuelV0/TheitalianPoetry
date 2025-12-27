@@ -152,62 +152,51 @@ const AudioPlayerWithHighlight = ({
   const lastScrolledIndex = useRef(-1);
   const scrollCooldown = useRef(false);
 
-  useEffect(() => {
-    const audio = new Audio(audioUrl);
-    audio.preload = 'metadata';
-    audioRef.current = audio;
+  const togglePlayback = async () => {
+  try {
+    // 🧠 CREA L’AUDIO SOLO AL CLICK (GESTO UTENTE)
+    if (!audioRef.current) {
+      const audio = new Audio(audioUrl);
+      audio.preload = 'metadata';
+      audioRef.current = audio;
 
-    const handleTimeUpdate = () => {
-      if (!audioRef.current) return;
-      const currentTime = audioRef.current.currentTime;
-      const duration = audioRef.current.duration || 1;
-      const newProgress = currentTime / duration;
-      setProgress(newProgress);
+      audio.addEventListener('timeupdate', () => {
+        if (!audioRef.current) return;
 
-      const wordIndex = Math.floor(newProgress * words.length);
-      setCurrentWordIndex(Math.min(wordIndex, words.length - 1));
+        const currentTime = audioRef.current.currentTime;
+        const duration = audioRef.current.duration || 1;
+        const progress = currentTime / duration;
+        setProgress(progress);
 
-      if (
-        wordRefs.current[wordIndex] &&
-        wordIndex !== lastScrolledIndex.current &&
-        !scrollCooldown.current
-      ) {
-        scrollCooldown.current = true;
-        lastScrolledIndex.current = wordIndex;
+        const wordIndex = Math.floor(progress * words.length);
+        setCurrentWordIndex(Math.min(wordIndex, words.length - 1));
+      });
 
-        wordRefs.current[wordIndex]?.scrollIntoView({
-          behavior: 'smooth',
-          block: 'center'
-        });
+      audio.addEventListener('ended', () => {
+        setIsPlaying(false);
+        setCurrentWordIndex(-1);
+      });
 
-        setTimeout(() => {
-          scrollCooldown.current = false;
-        }, 300);
-      }
-    };
+      audio.addEventListener('error', () => {
+        onError('Errore durante la riproduzione');
+        setIsPlaying(false);
+      });
+    }
 
-    const handleEnded = () => {
+    if (audioRef.current.paused) {
+      await audioRef.current.play(); // ✅ Safari-safe
+      setIsPlaying(true);
+    } else {
+      audioRef.current.pause();
       setIsPlaying(false);
-      setCurrentWordIndex(-1);
-    };
+    }
+  } catch (err) {
+    console.error('Playback error:', err);
+    onError('Impossibile avviare la riproduzione');
+  }
+};
 
-    const handleError = () => {
-      onError('Errore durante la riproduzione');
-      setIsPlaying(false);
-    };
-
-    audio.addEventListener('timeupdate', handleTimeUpdate);
-    audio.addEventListener('ended', handleEnded);
-    audio.addEventListener('error', handleError);
-
-    return () => {
-      audio.removeEventListener('timeupdate', handleTimeUpdate);
-      audio.removeEventListener('ended', handleEnded);
-      audio.removeEventListener('error', handleError);
-      audio.pause();
-    };
-  }, [audioUrl, words.length, onError]);
-
+  
   const togglePlayback = async () => {
     if (!audioRef.current) return;
     try {
