@@ -294,8 +294,12 @@ const PoetryPage = ({ poesia, onBack }: { poesia: any; onBack: () => void }) => 
   const [audioBlobUrl, setAudioBlobUrl] = useState<string | null>(null);
   const [audioError, setAudioError] = useState<string | null>(null);
   const [showAudioPlayer, setShowAudioPlayer] = useState(false);
+  // Inizio modifica/aggiunta - stato per feedback copia contenuto
   const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'error'>('idle');
-  const [forceAnalysisMessage, setForceAnalysisMessage] = useState<string | null>(null);
+  // Inizio modifica/aggiunta - stato per poesie consigliate
+  const [recommendedMatches, setRecommendedMatches] = useState<RecommendedPoem[]>([]);
+  const [recommendedStatus, setRecommendedStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+  const [recommendedError, setRecommendedError] = useState<string | null>(null);
 
   // Parse analisi (robusto)
   const parseJSON = (x: any) => {
@@ -307,15 +311,108 @@ const PoetryPage = ({ poesia, onBack }: { poesia: any; onBack: () => void }) => 
   };
   const analisiPsico = parseJSON(poesia.analisi_psicologica);
   const analisiLett = parseJSON(poesia.analisi_letteraria);
+  // Inizio modifica/aggiunta - calcolo memoizzato delle statistiche della poesia
   const poesiaStats = useMemo(() => calculatePoetryStats(poesia.content || ''), [poesia.content]);
 
-  // Reset stato copia dopo timeout
+  // Inizio modifica/aggiunta - reset stato copia dopo timeout
   useEffect(() => {
     if (copyStatus === 'idle') return;
     const timeout = setTimeout(() => setCopyStatus('idle'), 2000);
     return () => clearTimeout(timeout);
   }, [copyStatus]);
 
+  // Inizio modifica/aggiunta - recupero poesie consigliate
+  useEffect(() => {
+    let isActive = true;
+
+    setRecommendedMatches([]);
+    setRecommendedError(null);
+    setRecommendedStatus('idle');
+
+    const poesiaIdValue = poesia?.id;
+    if (poesiaIdValue === undefined || poesiaIdValue === null) {
+      return () => {
+        isActive = false;
+      };
+    }
+
+    const fetchRecommendations = async () => {
+      setRecommendedStatus('loading');
+      try {
+        const response = await fetch('/.netlify/functions/match-poesie', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ poesia_id: poesiaIdValue })
+        });
+
+        if (!response.ok) {
+          const errText = await response.text();
+          throw new Error(errText || `HTTP ${response.status}`);
+        }
+
+        const payload = await response.json();
+        const matchesArray = Array.isArray(payload?.matches) ? payload.matches : [];
+        const currentPoetryId = String(poesiaIdValue);
+
+        const sanitized = matchesArray
+          .map((match: any) => {
+            if (!match) return null;
+
+            const rawId = match.id;
+            const id =
+              typeof rawId === 'string'
+                ? rawId
+                : typeof rawId === 'number'
+                ? String(rawId)
+                : null;
+
+            if (!id || id === currentPoetryId) return null;
+
+            const title =
+              typeof match.title === 'string' && match.title.trim().length > 0
+                ? match.title.trim()
+                : 'Senza titolo';
+
+            const authorName =
+              typeof match.author_name === 'string' && match.author_name.trim().length > 0
+                ? match.author_name.trim()
+                : null;
+
+            const similarity =
+              typeof match.similarity === 'number' ? match.similarity : null;
+
+            return {
+              id,
+              title,
+              author_name: authorName,
+              similarity
+            } as RecommendedPoem;
+          })
+          .filter((item: RecommendedPoem | null): item is RecommendedPoem => Boolean(item));
+
+        if (isActive) {
+          setRecommendedMatches(sanitized);
+          setRecommendedStatus('success');
+        }
+      } catch (error) {
+        console.error('Errore match poesie:', error);
+        if (isActive) {
+          setRecommendedStatus('error');
+          setRecommendedError('Impossibile recuperare poesie consigliate.');
+        }
+      }
+    };
+
+    fetchRecommendations();
+
+    return () => {
+      isActive = false;
+    };
+  }, [poesia.id]);
+
+  // Inizio modifica/aggiunta - gestione copia del contenuto della poesia
   const handleCopyContent = useCallback(async () => {
     const text = poesia.content || '';
     if (!text.trim()) {
@@ -346,34 +443,58 @@ const PoetryPage = ({ poesia, onBack }: { poesia: any; onBack: () => void }) => 
     }
   }, [poesia.content]);
 
-  const handleForceAnalysis = useCallback(() => {
-    setForceAnalysisMessage('Funzionalità disponibile solo nella modalità lettura.');
+  // Inizio modifica/aggiunta - utility per liberare il blob audio
+  const clearAudioBlob = useCallback(() => {
+    setAudioBlobUrl(prev => {
+      if (prev) {
+        URL.revokeObjectURL(prev);
+      }
+      return null;
+    });
   }, []);
+
+  // Inizio modifica/aggiunta - reset audio ad ogni cambio poesia
+  useEffect(() => {
+    clearAudioBlob();
+    setAudioError(null);
+  }, [poesia.id, clearAudioBlob]);
 
   // iOS/Safari: scarico il blob per autoplay policy
   const fetchAudioAsBlob = useCallback(async (url: string) => {
     setAudioError(null);
     try {
-      const res = await fetch(`${url}?ts=${Date.now()}`, { cache: 'no-store', mode: 'cors' });
+      const res = await fetch(`${url}?ts=${Date.now()}`, { cache: 'no-store' });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const ct = res.headers.get('content-type');
       if (!ct?.includes('audio/')) throw new Error(`Invalid MIME type: ${ct}`);
       const blob = await res.blob();
-      setAudioBlobUrl(URL.createObjectURL(blob));
+      const objectUrl = URL.createObjectURL(blob);
+      setAudioBlobUrl(prev => {
+        if (prev) {
+          URL.revokeObjectURL(prev);
+        }
+        return objectUrl;
+      });
     } catch (err) {
+      console.error('Errore nel caricamento audio:', err);
       setAudioError('Errore nel caricamento audio');
     }
   }, []);
 
   useEffect(() => {
-    if (!audioUrl || !isIOSorSafari() || audioBlobUrl) return;
+    if (!audioUrl || !isIOSorSafari()) return;
     fetchAudioAsBlob(audioUrl);
-    return () => {
-      if (audioBlobUrl) URL.revokeObjectURL(audioBlobUrl);
-    };
-  }, [audioUrl, audioBlobUrl, fetchAudioAsBlob]);
+  }, [audioUrl, fetchAudioAsBlob]);
 
-  const statoTesto = audioUrl ? 'Audio disponibile' : 'Audio non disponibile';
+  useEffect(() => {
+    return () => {
+      if (audioBlobUrl) {
+        URL.revokeObjectURL(audioBlobUrl);
+      }
+    };
+  }, [audioBlobUrl]);
+
+  const audioStatusText = audioUrl ? 'Audio disponibile' : 'Audio non disponibile';
 
   // ----- RENDER ANALISI: PSICO DETTAGLIATA -----
   const renderAnalisiPsicoDettagliata = () => {
@@ -386,6 +507,7 @@ const PoetryPage = ({ poesia, onBack }: { poesia: any; onBack: () => void }) => 
 
     if (!hasDetailed) return null;
 
+    // render di meccanismi come [{nome, evidenze:[]}] etc.
     const renderNamedList = (arr?: any[]) => {
       if (!Array.isArray(arr) || arr.length === 0) return <p className="text-gray-500 italic">N/A</p>;
       return (
@@ -547,6 +669,7 @@ const PoetryPage = ({ poesia, onBack }: { poesia: any; onBack: () => void }) => 
           <section className="analysis-section">
             <h2>Analisi Stilistica e Narratologica</h2>
 
+            {/* Se "stile" è stringa -> mostra. Se è oggetto (ritmo/lessico/sintassi) -> KeyValueBlock */}
             {stile?.stile && typeof stile.stile === 'string' ? (
               <>
                 <h4 className="font-semibold">Stile di scrittura</h4>
@@ -665,7 +788,9 @@ const PoetryPage = ({ poesia, onBack }: { poesia: any; onBack: () => void }) => 
 
         {/* AUDIO */}
         <div className="audio-section">
-          <div className="audio-status">{statoTesto}</div>
+          <div className="audio-status">
+            {audioStatusText}
+          </div>
 
           {audioUrl && (
             <div className="audio-options">
@@ -684,7 +809,7 @@ const PoetryPage = ({ poesia, onBack }: { poesia: any; onBack: () => void }) => 
           {audioError && <div className="audio-error">{audioError}</div>}
         </div>
 
-        {/* Sezione strumenti e statistiche della poesia */}
+        {/* Inizio modifica/aggiunta - sezione strumenti e statistiche della poesia */}
         <section className="poetry-tools" aria-label="Statistiche e strumenti poesia">
           <div className="poetry-stats-card">
             <h2>Statistiche rapide</h2>
@@ -723,27 +848,43 @@ const PoetryPage = ({ poesia, onBack }: { poesia: any; onBack: () => void }) => 
             </p>
             <button
               type="button"
-              onClick={handleForceAnalysis}
-              className="force-analysis-button"
+              className="compatibility-button"
+              disabled
+              title="Disponibile solo nell'applicazione completa"
             >
-              Forza nuova analisi
+              Cerca compatibilità
             </button>
-            <p
-              className="force-analysis-feedback text-gray-600"
-              role="status"
-              aria-live="polite"
-            >
-              {forceAnalysisMessage || 'Funzionalità disponibile solo nell’app completa.'}
-            </p>
           </div>
         </section>
 
-        {/* Sezione poesie consigliate */}
+        {/* Inizio modifica/aggiunta - sezione poesie consigliate */}
         <section className="poetry-recommendations" aria-label="Poesie consigliate">
           <h2>Poesie consigliate</h2>
-          <p className="text-sm text-gray-500 italic">
-            Funzionalità disponibile solo nell’app completa.
-          </p>
+          {recommendedStatus === 'loading' && (
+            <p className="text-sm text-gray-600">Caricamento suggerimenti…</p>
+          )}
+          {recommendedStatus === 'error' && (
+            <p className="text-sm text-red-600">
+              {recommendedError || 'Impossibile recuperare poesie consigliate.'}
+            </p>
+          )}
+          {recommendedStatus === 'success' && recommendedMatches.length === 0 && (
+            <p className="text-sm text-gray-500 italic">
+              Nessuna poesia consigliata disponibile.
+            </p>
+          )}
+          {recommendedMatches.length > 0 && (
+            <ul className="list-disc list-inside ml-4">
+              {recommendedMatches.map(match => (
+                <li key={match.id}>
+                  <span className="font-medium">{match.title}</span>
+                  {match.author_name ? (
+                    <span className="text-sm text-gray-600"> — {match.author_name}</span>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          )}
         </section>
 
         {/* ANALISI */}
@@ -821,6 +962,7 @@ const App = () => {
     setState(prev => ({ ...prev, selectedPoesia: null }));
   };
 
+  // Inizio modifica/aggiunta - memoizzazione e sanitizzazione filtro poesie
   const poesieFiltrate = useMemo(() => {
     const searchTerm = state.search.trim().toLowerCase();
     if (!searchTerm) return state.poesie;
