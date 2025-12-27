@@ -2,21 +2,38 @@
 
 // App.tsx (top of the file)
 
-// Inizio modifica/aggiunta - aggiunto useMemo all'import
-import { supabase } from './lib/supabaseClient';
 import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { supabase as standaloneSupabase } from './lib/supabaseClient';
 import { FaArrowLeft, FaPlay, FaPause, FaStop, FaDownload } from 'react-icons/fa';
-import './index.css'
+import './index.css';
 
 // --- CONFIG ENDPOINTS ---
-const AUDIO_API_URL = 'https://poetry.theitalianpoetryproject.com/.netlify/functions/genera-audio';
+const AUDIO_API_URL =
+  'https://poetry.theitalianpoetryproject.com/.netlify/functions/genera-audio';
 
 // --- UTILS ---
 function isIOSorSafari() {
-  if (typeof navigator === "undefined") return false;
-  return /iP(ad|hone|od)/.test(navigator.userAgent) ||
-    (/Safari/i.test(navigator.userAgent) && !/Chrome/i.test(navigator.userAgent));
+  if (typeof navigator === 'undefined') return false;
+  return (
+    /iP(ad|hone|od)/.test(navigator.userAgent) ||
+    (/Safari/i.test(navigator.userAgent) && !/Chrome/i.test(navigator.userAgent))
+  );
 }
+
+const isNonEmptyObject = (v: any) =>
+  v && typeof v === 'object' && !Array.isArray(v) && Object.keys(v).length > 0;
+
+// --- WIDGET CONFIG ---
+type WidgetConfig = {
+  supabase?: {
+    url: string;
+    anonKey: string;
+  };
+  theme?: 'light' | 'dark';
+  onReady?: () => void;
+  onError?: (err: any) => void;
+};
 
 const isNonEmptyObject = (v: any) => v && typeof v === 'object' && !Array.isArray(v) && Object.keys(v).length > 0;
 
