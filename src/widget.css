@@ -1,1 +1,382 @@
-.
+/* =============================================================================
+   POETRY AI WIDGET — DESIGN SYSTEM COMPLETO
+   Isolato, Premium, Embed-safe
+   ========================================================================== */
+
+/* =========================
+   VARIABILI GLOBALI
+   ========================= */
+:root {
+  /* Colori primari */
+  --primary-50: #f0fdf4;
+  --primary-100: #dcfce7;
+  --primary-200: #bbf7d0;
+  --primary-300: #86efac;
+  --primary-400: #4ade80;
+  --primary-500: #22c55e;
+  --primary-600: #16a34a;
+  --primary-700: #15803d;
+  --primary-800: #166534;
+  --primary-900: #14532d;
+
+  /* Grigi */
+  --gray-50: #f9fafb;
+  --gray-100: #f3f4f6;
+  --gray-200: #e5e7eb;
+  --gray-300: #d1d5db;
+  --gray-400: #9ca3af;
+  --gray-500: #6b7280;
+  --gray-600: #4b5563;
+  --gray-700: #374151;
+  --gray-800: #1f2937;
+  --gray-900: #111827;
+
+  /* Accenti */
+  --sky-400: #38bdf8;
+  --sky-500: #0ea5e9;
+  --rose-500: #f43f5e;
+
+  /* Tipografia */
+  --font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    Roboto, Helvetica, Arial, sans-serif;
+  --font-serif: ui-serif, Georgia, "Times New Roman", serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+
+  /* Radius */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-xl: 22px;
+
+  /* Shadow */
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);
+  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.12);
+  --shadow-lg: 0 20px 40px rgba(0, 0, 0, 0.18);
+
+  /* Transizioni */
+  --transition-fast: 150ms ease;
+  --transition-normal: 300ms ease;
+
+  /* Layout widget */
+  --widget-max-width: 420px;
+}
+
+/* =========================
+   RESET ISOLATO
+   ========================= */
+.app-container,
+.app-container * {
+  box-sizing: border-box;
+}
+
+.app-container {
+  font-family: var(--font-sans);
+  color: var(--gray-900);
+  background: var(--gray-50);
+  max-width: var(--widget-max-width);
+  margin: 0 auto;
+  padding: 12px;
+  line-height: 1.5;
+}
+
+/* =============================================================================
+   LISTA POESIE (CARD)
+   ========================================================================== */
+
+.poesia-card {
+  background: white;
+  border-radius: var(--radius-lg);
+  padding: 16px;
+  margin-bottom: 14px;
+  box-shadow: var(--shadow-md);
+  cursor: pointer;
+  transition: transform var(--transition-normal),
+    box-shadow var(--transition-normal);
+  position: relative;
+  overflow: hidden;
+}
+
+.poesia-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-top: 3px solid var(--primary-500);
+  opacity: 0;
+  transition: opacity var(--transition-normal);
+}
+
+.poesia-card:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-lg);
+}
+
+.poesia-card:hover::before {
+  opacity: 1;
+}
+
+.poesia-card h3 {
+  font-family: var(--font-serif);
+  font-size: 1.1rem;
+  margin-bottom: 4px;
+  color: var(--primary-700);
+}
+
+.poesia-card .author {
+  font-size: 0.85rem;
+  font-style: italic;
+  color: var(--gray-500);
+}
+
+.poesia-card .preview {
+  margin-top: 8px;
+  font-size: 0.95rem;
+  color: var(--gray-700);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* =============================================================================
+   PAGINA SINGOLA POESIA
+   ========================================================================== */
+
+.poetry-page {
+  animation: fadeIn 0.4s ease-out;
+}
+
+.back-button {
+  background: white;
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius-md);
+  padding: 8px 12px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+  margin-bottom: 12px;
+  transition: all var(--transition-fast);
+}
+
+.back-button:hover {
+  background: var(--primary-600);
+  color: white;
+  border-color: var(--primary-600);
+}
+
+.poetry-header {
+  text-align: center;
+  padding: 18px 14px;
+  border-radius: var(--radius-xl);
+  background: white;
+  box-shadow: var(--shadow-md);
+  margin-bottom: 16px;
+}
+
+.poetry-header h1 {
+  font-family: var(--font-serif);
+  font-size: 1.5rem;
+  line-height: 1.3;
+  background: linear-gradient(
+    135deg,
+    var(--primary-600),
+    var(--primary-400)
+  );
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.poetry-header .author {
+  font-size: 1rem;
+  color: var(--primary-600);
+  font-weight: 600;
+}
+
+/* =============================================================================
+   TESTO POESIA
+   ========================================================================== */
+
+.poetry-text pre {
+  background: var(--gray-50);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-lg);
+  padding: 14px;
+  font-family: var(--font-mono);
+  font-size: 0.95rem;
+  white-space: pre-wrap;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+/* =============================================================================
+   AUDIO SECTION
+   ========================================================================== */
+
+.audio-section {
+  margin-top: 16px;
+  padding: 14px;
+  border-radius: var(--radius-lg);
+  background: linear-gradient(135deg, var(--primary-50), #e0f2fe);
+  border: 1px solid var(--primary-200);
+}
+
+.audio-status {
+  font-weight: 600;
+  color: var(--primary-700);
+  margin-bottom: 8px;
+}
+
+.listen-button,
+.audio-download-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 14px;
+  border-radius: var(--radius-md);
+  background: var(--primary-600);
+  color: white;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+  text-decoration: none;
+  transition: transform var(--transition-fast),
+    background var(--transition-fast);
+}
+
+.listen-button:hover,
+.audio-download-link:hover {
+  background: var(--primary-700);
+  transform: translateY(-1px);
+}
+
+.audio-error {
+  margin-top: 8px;
+  padding: 10px;
+  border-radius: var(--radius-md);
+  background: #fff1f2;
+  color: var(--rose-500);
+  font-weight: 600;
+}
+
+/* =============================================================================
+   PLAYER KARAOKE FULLSCREEN
+   ========================================================================== */
+
+.audio-player-modal {
+  position: fixed;
+  inset: 0;
+  background: linear-gradient(135deg, #0f172a, #1e293b);
+  color: white;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+}
+
+.audio-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(8px);
+}
+
+.play-button,
+.stop-button,
+.speed-button {
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: white;
+  padding: 8px 12px;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+
+.speed-button.active {
+  background: var(--primary-500);
+  border-color: var(--primary-500);
+}
+
+.progress-bar {
+  flex: 1;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--primary-500), var(--sky-500));
+}
+
+/* =============================================================================
+   TESTO KARAOKE
+   ========================================================================== */
+
+.content-highlight {
+  flex: 1;
+  padding: 20px;
+  font-size: 1.25rem;
+  line-height: 1.7;
+  text-align: center;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+}
+
+.word {
+  padding: 3px 6px;
+  border-radius: 6px;
+  transition: all 0.25s ease;
+}
+
+.word.highlight {
+  background: linear-gradient(
+    135deg,
+    var(--primary-500),
+    var(--sky-400)
+  );
+  color: white;
+  transform: scale(1.15);
+  box-shadow: 0 0 20px rgba(34, 197, 94, 0.45);
+}
+
+.word.glow {
+  color: var(--sky-400);
+  text-shadow: 0 0 12px rgba(56, 189, 248, 0.4);
+}
+
+/* =============================================================================
+   UTILS
+   ========================================================================== */
+
+.loader,
+.empty-state {
+  text-align: center;
+  padding: 24px;
+  color: var(--gray-500);
+  font-weight: 600;
+}
+
+.error-message {
+  background: #fff1f2;
+  border: 1px solid #fecdd3;
+  color: var(--rose-500);
+  padding: 12px;
+  border-radius: var(--radius-md);
+}
+
+/* =============================================================================
+   ANIMAZIONI
+   ========================================================================== */
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
