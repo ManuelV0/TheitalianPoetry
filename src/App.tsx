@@ -1,13 +1,10 @@
-// src/App.tsx
-
 import React, {
   useEffect,
   useState,
-  useRef,
   useCallback,
-  useMemo
+  useMemo,
+  useRef
 } from 'react';
-import { supabase } from './lib/supabaseClient';
 import {
   FaArrowLeft,
   FaPlay,
@@ -17,11 +14,17 @@ import {
 } from 'react-icons/fa';
 import './index.css';
 
-// --- CONFIG ENDPOINTS ---
+/* ------------------------------------------------------------------ */
+/* CONFIG */
+/* ------------------------------------------------------------------ */
+
 const AUDIO_API_URL =
   'https://poetry.theitalianpoetryproject.com/.netlify/functions/genera-audio';
 
-// --- UTILS ---
+/* ------------------------------------------------------------------ */
+/* UTILS */
+/* ------------------------------------------------------------------ */
+
 function isIOSorSafari() {
   if (typeof navigator === 'undefined') return false;
   return (
@@ -36,7 +39,10 @@ const isNonEmptyObject = (v: any) =>
   !Array.isArray(v) &&
   Object.keys(v).length > 0;
 
-// --- TYPES ---
+/* ------------------------------------------------------------------ */
+/* TYPES */
+/* ------------------------------------------------------------------ */
+
 type RecommendedPoem = {
   id: string;
   title: string;
@@ -44,7 +50,10 @@ type RecommendedPoem = {
   similarity: number | null;
 };
 
-// --- STATS ---
+/* ------------------------------------------------------------------ */
+/* STATS */
+/* ------------------------------------------------------------------ */
+
 const calculatePoetryStats = (text: string) => {
   const sanitized = (text ?? '').trim();
   if (!sanitized) {
@@ -58,81 +67,102 @@ const calculatePoetryStats = (text: string) => {
     };
   }
 
-  const lineCount = sanitized
+  const lines = sanitized
     .split(/\r?\n/)
-    .filter(l => l.trim().length > 0).length;
+    .filter(l => l.trim().length > 0);
 
   const words = sanitized.split(/\s+/).filter(Boolean);
-  const uniqueWordCount = new Set(words.map(w => w.toLowerCase())).size;
-  const characterCount = sanitized.replace(/\s+/g, '').length;
-  const averageWordsPerLine =
-    lineCount > 0 ? Number((words.length / lineCount).toFixed(1)) : 0;
-
-  const estimatedSeconds = Math.round((words.length / 180) * 60);
 
   return {
-    lineCount,
+    lineCount: lines.length,
     wordCount: words.length,
-    uniqueWordCount,
-    characterCount,
-    averageWordsPerLine,
-    readingTimeSeconds: Math.max(30, estimatedSeconds)
+    uniqueWordCount: new Set(words.map(w => w.toLowerCase())).size,
+    characterCount: sanitized.replace(/\s+/g, '').length,
+    averageWordsPerLine:
+      lines.length > 0
+        ? Number((words.length / lines.length).toFixed(1))
+        : 0,
+    readingTimeSeconds: Math.max(30, Math.round((words.length / 180) * 60))
   };
 };
 
 const formatReadingTime = (seconds: number) => {
-  if (!seconds || seconds <= 0) return 'Non stimabile';
   const m = Math.floor(seconds / 60);
   const s = seconds % 60;
-  if (m === 0) return `${s} sec`;
-  if (s === 0) return `${m} min`;
-  return `${m} min ${s} sec`;
+  if (!m) return `${s}s`;
+  if (!s) return `${m} min`;
+  return `${m}m ${s}s`;
 };
 
-// --- COMPONENTS UTILI ---
-function SafeList({ items }: { items?: any[] }) {
-  if (!Array.isArray(items) || items.length === 0) {
-    return <p className="text-gray-500 italic">N/A</p>;
-  }
-  return (
-    <ul className="list-disc list-inside ml-6">
-      {items.map((x, i) => (
-        <li key={i}>{typeof x === 'string' ? x : JSON.stringify(x)}</li>
-      ))}
-    </ul>
-  );
-}
+/* ------------------------------------------------------------------ */
+/* AUDIO PLAYER */
+/* ------------------------------------------------------------------ */
 
-function CitazioniList({ items }: { items?: string[] }) {
-  if (!Array.isArray(items) || items.length === 0) {
-    return <p className="text-gray-500 italic">Nessuna citazione</p>;
-  }
-  return (
-    <ul className="list-disc list-inside ml-6">
-      {items.map((c, i) => (
-        <li key={i}>«{c}»</li>
-      ))}
-    </ul>
-  );
-}
+const AudioPlayerWithHighlight = ({
+  content,
+  audioUrl,
+  onClose,
+  onError
+}: {
+  content: string;
+  audioUrl: string;
+  onClose: () => void;
+  onError: (msg: string) => void;
+}) => {
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [progress, setProgress] = useState(0);
 
-function KeyValueBlock({ data }: { data?: any }) {
-  if (!isNonEmptyObject(data)) return null;
+  useEffect(() => {
+    const audio = new Audio(audioUrl);
+    audioRef.current = audio;
+
+    const onTime = () => {
+      setProgress(audio.currentTime / (audio.duration || 1));
+    };
+
+    const onEnd = () => setIsPlaying(false);
+    const onErr = () => onError('Errore riproduzione audio');
+
+    audio.addEventListener('timeupdate', onTime);
+    audio.addEventListener('ended', onEnd);
+    audio.addEventListener('error', onErr);
+
+    return () => {
+      audio.pause();
+      audio.removeEventListener('timeupdate', onTime);
+      audio.removeEventListener('ended', onEnd);
+      audio.removeEventListener('error', onErr);
+    };
+  }, [audioUrl, onError]);
+
+  const toggle = async () => {
+    if (!audioRef.current) return;
+    if (isPlaying) {
+      audioRef.current.pause();
+    } else {
+      await audioRef.current.play();
+    }
+    setIsPlaying(!isPlaying);
+  };
+
   return (
-    <div className="grid gap-2">
-      {Object.entries(data).map(([k, v]) => (
-        <div key={k}>
-          <strong>{k.replaceAll('_', ' ')}</strong>
-          <div>{typeof v === 'string' ? v : JSON.stringify(v)}</div>
-        </div>
-      ))}
+    <div className="audio-player-modal">
+      <button onClick={toggle}>
+        {isPlaying ? <FaPause /> : <FaPlay />}
+      </button>
+      <div className="progress">
+        <div style={{ width: `${progress * 100}%` }} />
+      </div>
+      <button onClick={onClose}>Chiudi</button>
     </div>
   );
-}
+};
 
-// ===============================
-// PAGINA POESIA
-// ===============================
+/* ------------------------------------------------------------------ */
+/* POETRY PAGE */
+/* ------------------------------------------------------------------ */
+
 const PoetryPage = ({
   poesia,
   onBack
@@ -140,63 +170,112 @@ const PoetryPage = ({
   poesia: any;
   onBack: () => void;
 }) => {
-  const poesiaStats = useMemo(
-    () => calculatePoetryStats(poesia.content),
+  const stats = useMemo(
+    () => calculatePoetryStats(poesia.content || ''),
     [poesia.content]
   );
 
+  const [audioUrl, setAudioUrl] = useState<string | null>(
+    poesia.audio_url || null
+  );
+  const [audioStatus, setAudioStatus] =
+    useState<'idle' | 'loading' | 'ready'>(
+      poesia.audio_url ? 'ready' : 'idle'
+    );
+  const [showPlayer, setShowPlayer] = useState(false);
+
+  useEffect(() => {
+    if (audioUrl || audioStatus === 'loading') return;
+
+    setAudioStatus('loading');
+
+    fetch(AUDIO_API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        poesia_id: poesia.id,
+        text: poesia.content
+      })
+    })
+      .then(r => r.json())
+      .then(j => {
+        if (j.audio_url) {
+          setAudioUrl(j.audio_url);
+          setAudioStatus('ready');
+        } else {
+          setAudioStatus('idle');
+        }
+      })
+      .catch(() => setAudioStatus('idle'));
+  }, [audioUrl, audioStatus, poesia]);
+
   return (
     <div className="poetry-page">
-      <button onClick={onBack} className="back-button">
-        <FaArrowLeft /> Torna all'elenco
+      <button onClick={onBack}>
+        <FaArrowLeft /> Indietro
       </button>
 
       <h1>{poesia.title}</h1>
-      <p className="author">{poesia.author_name || 'Anonimo'}</p>
+      <p>{poesia.author_name || 'Anonimo'}</p>
 
       <pre>{poesia.content}</pre>
 
       <section>
-        <h2>Statistiche</h2>
+        <h3>Statistiche</h3>
         <ul>
-          <li>Parole: {poesiaStats.wordCount}</li>
-          <li>Linee: {poesiaStats.lineCount}</li>
-          <li>Tempo lettura: {formatReadingTime(poesiaStats.readingTimeSeconds)}</li>
+          <li>Parole: {stats.wordCount}</li>
+          <li>Linee: {stats.lineCount}</li>
+          <li>Tempo lettura: {formatReadingTime(stats.readingTimeSeconds)}</li>
         </ul>
       </section>
+
+      {audioStatus === 'ready' && audioUrl && (
+        <>
+          <button onClick={() => setShowPlayer(true)}>
+            <FaPlay /> Ascolta
+          </button>
+          <a href={audioUrl} download>
+            <FaDownload /> Scarica
+          </a>
+        </>
+      )}
+
+      {showPlayer && audioUrl && (
+        <AudioPlayerWithHighlight
+          content={poesia.content}
+          audioUrl={audioUrl}
+          onClose={() => setShowPlayer(false)}
+          onError={console.error}
+        />
+      )}
     </div>
   );
 };
 
-// ===============================
-// APP ROOT
-// ===============================
+/* ------------------------------------------------------------------ */
+/* APP (LISTA) */
+/* ------------------------------------------------------------------ */
+
 const App = () => {
-  const [state, setState] = useState({
-    poesie: [] as any[],
-    loading: true,
-    error: null as string | null,
-    search: '',
-    selectedPoesia: null as any | null
-  });
+  const [poesie, setPoesie] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [selected, setSelected] = useState<any | null>(null);
+  const [search, setSearch] = useState('');
 
   const fetchPoesie = useCallback(async () => {
-    setState(s => ({ ...s, loading: true, error: null }));
-    try {
-      const { data, error } = await supabase
-        .from('poesie')
-        .select('id,title,content,author_name,created_at')
-        .order('created_at', { ascending: false })
-        .limit(50);
+    setLoading(true);
+    setError(null);
 
-      if (error) throw error;
-      setState(s => ({ ...s, poesie: data ?? [], loading: false }));
-    } catch {
-      setState(s => ({
-        ...s,
-        loading: false,
-        error: 'Errore nel caricamento poesie'
-      }));
+    try {
+      const res = await fetch('/.netlify/functions/lista-poesie');
+      if (!res.ok) throw new Error('Fetch failed');
+      const data = await res.json();
+      setPoesie(data);
+    } catch (e) {
+      setError('Errore nel caricamento');
+    } finally {
+      setLoading(false);
     }
   }, []);
 
@@ -204,53 +283,44 @@ const App = () => {
     fetchPoesie();
   }, [fetchPoesie]);
 
-  const poesieFiltrate = useMemo(() => {
-    const q = state.search.toLowerCase();
-    if (!q) return state.poesie;
-    return state.poesie.filter(p =>
+  const filtered = useMemo(() => {
+    const q = search.toLowerCase().trim();
+    if (!q) return poesie;
+    return poesie.filter((p: any) =>
       [p.title, p.author_name, p.content]
-        .join(' ')
-        .toLowerCase()
-        .includes(q)
+        .filter(Boolean)
+        .some((v: string) => v.toLowerCase().includes(q))
     );
-  }, [state.search, state.poesie]);
+  }, [poesie, search]);
 
-  if (state.selectedPoesia) {
-    return (
-      <PoetryPage
-        poesia={state.selectedPoesia}
-        onBack={() =>
-          setState(s => ({ ...s, selectedPoesia: null }))
-        }
-      />
-    );
+  if (selected) {
+    return <PoetryPage poesia={selected} onBack={() => setSelected(null)} />;
   }
 
   return (
     <div className="app-container">
       <input
+        type="search"
         placeholder="Cerca poesie…"
-        value={state.search}
-        onChange={e =>
-          setState(s => ({ ...s, search: e.target.value }))
-        }
+        value={search}
+        onChange={e => setSearch(e.target.value)}
       />
 
-      {state.loading && <p>Caricamento…</p>}
-      {state.error && <p>{state.error}</p>}
+      {loading && <p>Caricamento…</p>}
+      {error && <p>{error}</p>}
 
-      {poesieFiltrate.map(p => (
-        <div
-          key={p.id}
-          className="poesia-card"
-          onClick={() =>
-            setState(s => ({ ...s, selectedPoesia: p }))
-          }
-        >
-          <h3>{p.title}</h3>
-          <p>{p.author_name || 'Anonimo'}</p>
-        </div>
-      ))}
+      <div className="poesie-list">
+        {filtered.map(p => (
+          <div
+            key={p.id}
+            className="poesia-card"
+            onClick={() => setSelected(p)}
+          >
+            <h3>{p.title}</h3>
+            <p>{p.author_name || 'Anonimo'}</p>
+          </div>
+        ))}
+      </div>
     </div>
   );
 };
