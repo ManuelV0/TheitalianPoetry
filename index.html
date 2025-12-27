@@ -1,50 +1,27 @@
 <!DOCTYPE html>
 <html lang="it">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Poetry Widget</title>
-</head>
-<body>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Poetry AI</title>
+    <link rel="icon" href="/favicon.ico" />
+  </head>
 
-  <div id="poetry-widget-container"></div>
+  <body>
+    <!-- ROOT DELL’APP -->
+    <div id="root"></div>
 
-  <script>
-    if (!window.process) {
-      window.process = { env: { NODE_ENV: 'production' } };
-    }
+    <!-- ENTRY VITE -->
+    <script type="module">
+      import { mount } from '/src/index.tsx';
 
-    const script = document.createElement('script');
-    script.src = 'https://widget.theitalianpoetryproject.com/my-poetry-app.iife.js';
-    script.crossOrigin = 'anonymous';
+      const el = document.getElementById('root');
 
-    script.onload = function () {
-      if (!window.MyPoetryApp?.mount) {
-        document.getElementById('poetry-widget-container').innerText =
-          'Widget non disponibile';
-        return;
-      }
-
-      window.MyPoetryApp.mount(
-        document.getElementById('poetry-widget-container'),
-        {
-          supabase: {
-            url: 'https://djikypgmchywybjxbwar.supabase.co',
-            anonKey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRqaWt5cGdtY2h5d3lianhid2FyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTMyMTMyOTIsImV4cCI6MjA2ODc4OTI5Mn0.dXqWkg47xTg2YtfLhBLrFd5AIB838KdsmR9qsMPkk8Q'👈 LA TUA ANON KEY'
-          },
-          onReady: () => console.log('[Widget] pronto'),
-          onError: (err) => console.error('[Widget]', err)
-        }
-      );
-    };
-
-    script.onerror = function () {
-      document.getElementById('poetry-widget-container').innerText =
-        'Errore nel caricamento del widget';
-    };
-
-    document.body.appendChild(script);
-  </script>
-
-</body>
+      mount(el, {
+        theme: 'light',
+        onReady: () => console.log('[Poetry] App pronta'),
+        onError: (err) => console.error('[Poetry] Errore', err),
+      });
+    </script>
+  </body>
 </html>
