@@ -152,24 +152,22 @@ const AudioPlayerWithHighlight = ({
   const lastScrolledIndex = useRef(-1);
   const scrollCooldown = useRef(false);
 
+
   const togglePlayback = async () => {
   try {
-    // 🧠 CREA L’AUDIO SOLO AL CLICK (GESTO UTENTE)
     if (!audioRef.current) {
-      const audio = new Audio(audioUrl);
-      audio.preload = 'metadata';
-      audioRef.current = audio;
+      const audio = document.createElement('audio');
+      audio.src = audioUrl;
+      audio.preload = 'auto';
+      audio.crossOrigin = 'anonymous';
 
       audio.addEventListener('timeupdate', () => {
-        if (!audioRef.current) return;
-
-        const currentTime = audioRef.current.currentTime;
-        const duration = audioRef.current.duration || 1;
-        const progress = currentTime / duration;
+        const duration = audio.duration || 1;
+        const progress = audio.currentTime / duration;
         setProgress(progress);
 
-        const wordIndex = Math.floor(progress * words.length);
-        setCurrentWordIndex(Math.min(wordIndex, words.length - 1));
+        const index = Math.floor(progress * words.length);
+        setCurrentWordIndex(Math.min(index, words.length - 1));
       });
 
       audio.addEventListener('ended', () => {
@@ -178,24 +176,27 @@ const AudioPlayerWithHighlight = ({
       });
 
       audio.addEventListener('error', () => {
-        onError('Errore durante la riproduzione');
+        onError('Errore audio');
         setIsPlaying(false);
       });
+
+      audioRef.current = audio;
     }
 
     if (audioRef.current.paused) {
-      await audioRef.current.play(); // ✅ Safari-safe
+      await audioRef.current.play();
       setIsPlaying(true);
     } else {
       audioRef.current.pause();
       setIsPlaying(false);
     }
   } catch (err) {
-    console.error('Playback error:', err);
+    console.error('[KARAOKE PLAY ERROR]', err);
     onError('Impossibile avviare la riproduzione');
   }
 };
 
+  
 const togglePlayback = async () => {
   try {
     // Crea l'audio SOLO su gesto utente (Safari-safe)
