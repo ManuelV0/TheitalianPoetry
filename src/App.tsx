@@ -209,37 +209,50 @@ const AudioPlayerWithHighlight = ({
   }, [audioUrl, words.length, onError]);
 
   const togglePlayback = async () => {
-    if (!audioRef.current) return;
-    try {
-      if (isPlaying) {
-        await audioRef.current.pause();
-      } else {
-        await audioRef.current.play();
-      }
-      setIsPlaying(!isPlaying);
-    } catch (err) {
-      console.error('Playback error:', err);
-      onError('Impossibile avviare la riproduzione');
-    }
-  };
+  try {
+    // 🔥 AUDIO CREATO SOLO QUI
+    if (!audioRef.current) {
+      const audio = document.createElement('audio');
+      audio.src = audioUrl;
+      audio.preload = 'auto';
+      audio.crossOrigin = 'anonymous';
 
-  const handleStop = () => {
-    if (audioRef.current) {
+      audio.addEventListener('timeupdate', () => {
+        const duration = audio.duration || 1;
+        const progress = audio.currentTime / duration;
+        setProgress(progress);
+
+        const index = Math.floor(progress * words.length);
+        setCurrentWordIndex(Math.min(index, words.length - 1));
+      });
+
+      audio.addEventListener('ended', () => {
+        setIsPlaying(false);
+        setCurrentWordIndex(-1);
+      });
+
+      audio.addEventListener('error', () => {
+        onError('Errore audio');
+        setIsPlaying(false);
+      });
+
+      audioRef.current = audio;
+    }
+
+    // 🔥 PLAY SEMPRE QUI
+    if (audioRef.current.paused) {
+      await audioRef.current.play();
+      setIsPlaying(true);
+    } else {
       audioRef.current.pause();
-      audioRef.current.currentTime = 0;
+      setIsPlaying(false);
     }
-    setIsPlaying(false);
-    setCurrentWordIndex(-1);
-    setProgress(0);
-  };
-
-  const handleSpeedChange = (speed: number) => {
-    if (audioRef.current) {
-      audioRef.current.playbackRate = speed;
-      setPlaybackRate(speed);
-    }
-  };
-
+  } catch (e) {
+    console.error('[WIDGET KARAOKE ERROR]', e);
+    onError('Playback bloccato dal browser');
+  }
+};
+  
   return (
     <div className="audio-player-modal" ref={containerRef}>
       <div className="audio-controls">
