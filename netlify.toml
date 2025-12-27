@@ -5,35 +5,28 @@
 [[headers]]
   for = "/*"
   [headers.values]
-    Access-Control-Allow-Origin = "https://www.theitalianpoetryproject.com"
+    Content-Security-Policy = "
+      default-src 'self';
+      script-src 'self' 'unsafe-inline' 'unsafe-eval'
+        https://www.theitalianpoetryproject.com
+        https://theitalianpoetryproject.com
+        https://*.googletagmanager.com
+        https://*.google-analytics.com;
+      style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+      img-src 'self' data: blob: https://*.google-analytics.com;
+      font-src 'self' https://fonts.gstatic.com;
+      connect-src
+        'self'
+        https://djikypgmchywybjxbwar.supabase.co
+        https://*.supabase.co
+        https://poetry.theitalianpoetryproject.com
+        https://backend.theitalianpoetryproject.com
+        https://*.google-analytics.com;
+    "
+
+[[headers]]
+  for = "/.netlify/functions/*"
+  [headers.values]
+    Access-Control-Allow-Origin = "*"
     Access-Control-Allow-Methods = "GET, POST, OPTIONS"
     Access-Control-Allow-Headers = "Content-Type, Authorization"
-    Access-Control-Max-Age = "86400"
-    X-Frame-Options = "DENY"
-    X-XSS-Protection = "1; mode=block"
-    Content-Security-Policy = "default-src 'self' https://www.theitalianpoetryproject.com https://theitalianpoetryproject.com https://*.googleapis.com https://*.gstatic.com https://*.google.com https://*.googlesyndication.com https://*.google-analytics.com; script-src 'self' 'unsafe-inline' https://www.theitalianpoetryproject.com https://theitalianpoetryproject.com https://*.googletagmanager.com https://*.google-analytics.com https://*.googlesyndication.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: https://*.google-analytics.com https://*.googlesyndication.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://www.theitalianpoetryproject.com https://theitalianpoetryproject.com https://*.google-analytics.com"
-
-# --- Qui sotto tutte le origins consentite per le function
-[[headers]]
-  for = "/.netlify/functions/*"
-  [headers.values]
-    Access-Control-Allow-Origin = "https://www.theitalianpoetryproject.com"
-    Access-Control-Allow-Methods = "POST, GET, OPTIONS"
-    Access-Control-Allow-Headers = "Content-Type, Authorization"
-    Access-Control-Allow-Credentials = "true"
-
-[[headers]]
-  for = "/.netlify/functions/*"
-  [headers.values]
-    Access-Control-Allow-Origin = "https://poetry.theitalianpoetryproject.com"
-    Access-Control-Allow-Methods = "POST, GET, OPTIONS"
-    Access-Control-Allow-Headers = "Content-Type, Authorization"
-    Access-Control-Allow-Credentials = "true"
-
-[[headers]]
-  for = "/.netlify/functions/*"
-  [headers.values]
-    Access-Control-Allow-Origin = "https://widget.theitalianpoetryproject.com"
-    Access-Control-Allow-Methods = "POST, GET, OPTIONS"
-    Access-Control-Allow-Headers = "Content-Type, Authorization"
-    Access-Control-Allow-Credentials = "true"
