@@ -1137,3 +1137,111 @@ body {
 .audio-player-modal ::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.5);
 }
+
+
+
+
+
+
+
+
+
+/* ===========================
+   POESIE CONSIGLIATE / MATCH
+   =========================== */
+
+.poetry-recommendations {
+  margin-top: 2.5rem;
+  padding: 1.75rem 1.5rem;
+  border-radius: 1.25rem;
+  background: linear-gradient(
+    135deg,
+    rgba(99, 102, 241, 0.06),
+    rgba(236, 72, 153, 0.04)
+  );
+  border: 1px solid rgba(99, 102, 241, 0.15);
+  box-shadow:
+    0 10px 25px rgba(15, 23, 42, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+
+/* Titolo */
+.poetry-recommendations h2 {
+  font-family: 'Montserrat', sans-serif;
+  font-size: 1.15rem;
+  font-weight: 700;
+  margin-bottom: 1rem;
+  color: #1f2937;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* Iconcina IA */
+.poetry-recommendations h2::before {
+  content: "🧠";
+  font-size: 1.25rem;
+}
+
+/* Stati testo */
+.poetry-recommendations p {
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+/* Loading */
+.poetry-recommendations p.text-gray-600 {
+  color: #4b5563;
+  font-style: italic;
+}
+
+/* Error */
+.poetry-recommendations p.text-red-600 {
+  color: #b91c1c;
+  background: rgba(239, 68, 68, 0.08);
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.5rem;
+}
+
+/* Empty state */
+.poetry-recommendations p.text-gray-500 {
+  color: #6b7280;
+  font-style: italic;
+}
+
+/* Lista poesie */
+.poetry-recommendations ul {
+  margin-top: 0.75rem;
+  padding-left: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.6rem;
+}
+
+/* Singola poesia */
+.poetry-recommendations li {
+  padding: 0.65rem 0.75rem;
+  border-radius: 0.6rem;
+  background: rgba(255, 255, 255, 0.75);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  transition: all 0.2s ease;
+}
+
+/* Hover */
+.poetry-recommendations li:hover {
+  background: #ffffff;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.12);
+}
+
+/* Titolo poesia */
+.poetry-recommendations li .font-medium {
+  font-weight: 600;
+  color: #111827;
+}
+
+/* Autore */
+.poetry-recommendations li .text-gray-600 {
+  font-size: 0.85rem;
+  color: #6b7280;
+}
