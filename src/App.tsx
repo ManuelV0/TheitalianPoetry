@@ -356,6 +356,7 @@ const PoetryPage = ({ poesia, onBack }: { poesia: any; onBack: () => void }) => 
   }, [copyStatus]);
 
  
+// --- RECUPERO POESIE CONSIGLIATE (MATCH) ---
 useEffect(() => {
   let isActive = true;
 
@@ -363,10 +364,23 @@ useEffect(() => {
   setRecommendedError(null);
   setRecommendedStatus('idle');
 
-  const poesiaIdValue = poesia?.id;
-  if (!poesiaIdValue) return;
+  // 🔥 NORMALIZZIAMO L'ID (QUESTO È IL PUNTO CHIAVE)
+  const poesiaIdValue = Number(poesia?.id);
 
-  const currentPoetryId = Number(poesiaIdValue);
+  // 🔎 DEBUG CRITICO
+  console.log('[MATCH DEBUG]', {
+    poesiaIdValue,
+    type: typeof poesiaIdValue,
+    poesia
+  });
+
+  // 🚫 BLOCCO DIFENSIVO
+  if (!Number.isFinite(poesiaIdValue)) {
+    console.warn('[MATCH] poesia_id NON valido, fetch annullato', poesia?.id);
+    return () => {
+      isActive = false;
+    };
+  }
 
   const fetchRecommendations = async () => {
     setRecommendedStatus('loading');
@@ -374,32 +388,54 @@ useEffect(() => {
     try {
       const response = await fetch(MATCH_POESIE_API, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ poesia_id: currentPoetryId })
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          poesia_id: poesiaIdValue
+        })
       });
 
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
+        const errText = await response.text();
+        throw new Error(errText || `HTTP ${response.status}`);
       }
 
       const payload = await response.json();
-      console.log('[MATCH RAW]', payload);
+
+      // 🔎 DEBUG RISPOSTA RAW
+      console.log('[MATCH RAW RESPONSE]', payload);
 
       const matchesArray = Array.isArray(payload?.matches)
         ? payload.matches
         : [];
 
+      // 🔎 DEBUG MATCHES PRIMA DEL SANITIZE
+      console.log('[MATCH RAW ARRAY]', matchesArray);
+
       const sanitized: RecommendedPoem[] = matchesArray
         .map((match: any) => {
           if (!match) return null;
 
-          const id = Number(match.id);
-          if (!id || id === currentPoetryId) return null;
+          const id =
+            typeof match.id === 'number'
+              ? String(match.id)
+              : typeof match.id === 'string'
+              ? match.id
+              : null;
+
+          if (!id || id === String(poesiaIdValue)) return null;
 
           return {
-            id: String(id),
-            title: match.title || 'Senza titolo',
-            author_name: match.author_name || null,
+            id,
+            title:
+              typeof match.title === 'string' && match.title.trim()
+                ? match.title.trim()
+                : 'Senza titolo',
+            author_name:
+              typeof match.author_name === 'string' && match.author_name.trim()
+                ? match.author_name.trim()
+                : null,
             similarity:
               typeof match.similarity === 'number'
                 ? match.similarity
@@ -408,6 +444,7 @@ useEffect(() => {
         })
         .filter(Boolean) as RecommendedPoem[];
 
+      // 🔎 DEBUG DOPO SANITIZE
       console.log('[MATCH SANITIZED]', sanitized);
 
       if (isActive) {
@@ -424,11 +461,11 @@ useEffect(() => {
   };
 
   fetchRecommendations();
+
   return () => {
     isActive = false;
   };
 }, [poesia?.id]);
-        
 
   // Inizio modifica/aggiunta - gestione copia del contenuto della poesia
   const handleCopyContent = useCallback(async () => {
