@@ -515,36 +515,7 @@ useEffect(() => {
   };
 }, [poesia?.id]);
 
-  // Inizio modifica/aggiunta - gestione copia del contenuto della poesia
-  const handleCopyContent = useCallback(async () => {
-    const text = poesia.content || '';
-    if (!text.trim()) {
-      setCopyStatus('error');
-      return;
-    }
-    try {
-      if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(text);
-      } else if (typeof document !== 'undefined') {
-        const textarea = document.createElement('textarea');
-        textarea.value = text;
-        textarea.setAttribute('readonly', '');
-        textarea.style.position = 'absolute';
-        textarea.style.left = '-9999px';
-        document.body.appendChild(textarea);
-        textarea.select();
-        const successful = document.execCommand('copy');
-        document.body.removeChild(textarea);
-        if (!successful) throw new Error('execCommand failed');
-      } else {
-        throw new Error('Clipboard API non disponibile');
-      }
-      setCopyStatus('copied');
-    } catch (error) {
-      console.error('Copy failed:', error);
-      setCopyStatus('error');
-    }
-  }, [poesia.content]);
+  
 
   // Inizio modifica/aggiunta - caricamento audio come blob per compatibilità iOS
   const fetchAudioAsBlob = useCallback(async (url: string) => {
