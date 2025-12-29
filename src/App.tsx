@@ -323,17 +323,65 @@ const AudioPlayerWithHighlight = ({
 
 
 // --- PAGINA SINGOLA POESIA ---
+
+
 const PoetryPage = ({ poesia, onBack }: { poesia: any; onBack: () => void }) => {
   const [audioUrl, setAudioUrl] = useState<string | null>(poesia.audio_url || null);
   const [audioBlobUrl, setAudioBlobUrl] = useState<string | null>(null);
   const [audioError, setAudioError] = useState<string | null>(null);
   const [showAudioPlayer, setShowAudioPlayer] = useState(false);
-  // Inizio modifica/aggiunta - stato per feedback copia contenuto
-  const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'error'>('idle');
-  // Inizio modifica/aggiunta - stato per poesie consigliate
-  const [recommendedMatches, setRecommendedMatches] = useState<RecommendedPoem[]>([]);
-  const [recommendedStatus, setRecommendedStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
-  const [recommendedError, setRecommendedError] = useState<string | null>(null);
+
+  // 🔹 stato feedback copia
+  const [copyStatus, setCopyStatus] =
+    useState<'idle' | 'copied' | 'error'>('idle');
+
+  // 🔹 stato poesie consigliate
+  const [recommendedMatches, setRecommendedMatches] =
+    useState<RecommendedPoem[]>([]);
+  const [recommendedStatus, setRecommendedStatus] =
+    useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+  const [recommendedError, setRecommendedError] =
+    useState<string | null>(null);
+
+  // =====================================================
+  // 📋 COPIA TESTO – SAFE PER IFRAME (postMessage)
+  // =====================================================
+  const handleCopyContent = useCallback(() => {
+    const text = poesia?.content || '';
+
+    if (!text.trim()) {
+      setCopyStatus('error');
+      return;
+    }
+
+    try {
+      // 👉 invio al parent (dominio principale)
+      window.parent.postMessage(
+        {
+          type: 'COPY_POEM_TEXT',
+          payload: text
+        },
+        '*'
+      );
+
+      setCopyStatus('copied');
+    } catch (err) {
+      console.error('[WIDGET COPY ERROR]', err);
+      setCopyStatus('error');
+    }
+  }, [poesia?.content]);
+
+  // ⏱ reset feedback copia
+  useEffect(() => {
+    if (copyStatus === 'idle') return;
+    const t = setTimeout(() => setCopyStatus('idle'), 2000);
+    return () => clearTimeout(t);
+  }, [copyStatus]);
+
+  // 👉 TUTTO IL RESTO DEL CODICE CONTINUA QUI (audio, match, render, ecc.)
+
+
+
 
   // Parse analisi (robusto)
   const parseJSON = (x: any) => {
