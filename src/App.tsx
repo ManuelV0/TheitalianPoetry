@@ -967,107 +967,149 @@ useEffect(() => {
 
 // --- LISTA / APP ---
 
-const [state, setState] = useState<{
-  poesie: any[];
-  loading: boolean;
-  error: string | null;
-  search: string;
-  selectedPoesia: any | null;
-}>({
-  poesie: [],
-  loading: true,
-  error: null,
-  search: '',
-  selectedPoesia: null
-});
+// --- LISTA / APP ---
 
-// 🔄 FETCH POESIE
-const fetchPoesie = useCallback(async () => {
-  setState(prev => ({ ...prev, loading: true, error: null }));
-
-  try {
-    const { data, error } = await supabase
-      .from('poesie')
-      .select(
-        'id, title, content, author_name, analisi_letteraria, analisi_psicologica, audio_url, created_at'
-      )
-      .order('created_at', { ascending: false })
-      .limit(50);
-
-    if (error) throw error;
-
-    setState(prev => ({
-      ...prev,
-      poesie: data || [],
-      loading: false
-    }));
-  } catch (err) {
-    console.error('[FETCH POESIE ERROR]', err);
-    setState(prev => ({
-      ...prev,
-      error: 'Errore nel caricamento',
-      loading: false
-    }));
-  }
-}, []);
-
-// ▶️ SELECT POESIA + TRACK LETTURA
-const handleSelectPoesia = useCallback(
-  async (poesia: any) => {
-    setState(prev => ({ ...prev, selectedPoesia: poesia }));
-
-    // ✅ TRACK LETTURA DA WIDGET
-    try {
-      const {
-        data: { session }
-      } = await supabase.auth.getSession();
-
-      if (!session) return;
-
-      await supabase.from('user_interactions').insert({
-        user_id: session.user.id,
-        poem_id: Number(poesia.id),
-        action: 'read',
-        weight: 2
-      });
-
-      console.log('[WIDGET TRACK] read', poesia.id);
-    } catch (err) {
-      console.error('[WIDGET TRACK ERROR]', err);
-    }
-  },
-  []
-);
-
-// 🔙 TORNA ALLA LISTA
-const handleBackToList = () => {
-  setState(prev => ({ ...prev, selectedPoesia: null }));
-};
-
-// 🔍 SEARCH
-const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
-  setState(prev => ({ ...prev, search: e.target.value }));
-};
-
-// 🔎 FILTRO POESIE (MEMOIZZATO)
-const poesieFiltrate = useMemo(() => {
-  const searchTerm = state.search.trim().toLowerCase();
-  if (!searchTerm) return state.poesie;
-
-  return state.poesie.filter(p => {
-    const fields = [p.title, p.author_name, p.content]
-      .filter((v): v is string => typeof v === 'string' && v.length > 0)
-      .map(v => v.toLowerCase());
-
-    return fields.some(f => f.includes(searchTerm));
+const App = () => {
+  const [state, setState] = useState<{
+    poesie: any[];
+    loading: boolean;
+    error: string | null;
+    search: string;
+    selectedPoesia: any | null;
+  }>({
+    poesie: [],
+    loading: true,
+    error: null,
+    search: '',
+    selectedPoesia: null
   });
-}, [state.poesie, state.search]);
 
-// ⏱ LOAD INIZIALE + REFRESH
-useEffect(() => {
-  fetchPoesie();
-  const interval = setInterval(fetchPoesie, 300000); // 5 minuti
-  return () => clearInterval(interval);
-}, [fetchPoesie]);
+  // 🔄 FETCH POESIE
+  const fetchPoesie = useCallback(async () => {
+    setState(prev => ({ ...prev, loading: true, error: null }));
+
+    try {
+      const { data, error } = await supabase
+        .from('poesie')
+        .select(
+          'id, title, content, author_name, analisi_letteraria, analisi_psicologica, audio_url, created_at'
+        )
+        .order('created_at', { ascending: false })
+        .limit(50);
+
+      if (error) throw error;
+
+      setState(prev => ({
+        ...prev,
+        poesie: data || [],
+        loading: false
+      }));
+    } catch (err) {
+      console.error('[FETCH POESIE ERROR]', err);
+      setState(prev => ({
+        ...prev,
+        error: 'Errore nel caricamento',
+        loading: false
+      }));
+    }
+  }, []);
+
+  // ▶️ SELECT POESIA + TRACK LETTURA
+  const handleSelectPoesia = useCallback(
+    async (poesia: any) => {
+      setState(prev => ({ ...prev, selectedPoesia: poesia }));
+
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) return;
+
+        await supabase.from('user_interactions').insert({
+          user_id: session.user.id,
+          poem_id: Number(poesia.id),
+          action: 'read',
+          weight: 2
+        });
+
+        console.log('[WIDGET TRACK] read', poesia.id);
+      } catch (err) {
+        console.error('[WIDGET TRACK ERROR]', err);
+      }
+    },
+    []
+  );
+
+  // 🔙 TORNA ALLA LISTA
+  const handleBackToList = () => {
+    setState(prev => ({ ...prev, selectedPoesia: null }));
+  };
+
+  // 🔍 SEARCH
+  const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setState(prev => ({ ...prev, search: e.target.value }));
+  };
+
+  // 🔎 FILTRO POESIE
+  const poesieFiltrate = useMemo(() => {
+    const searchTerm = state.search.trim().toLowerCase();
+    if (!searchTerm) return state.poesie;
+
+    return state.poesie.filter(p => {
+      const fields = [p.title, p.author_name, p.content]
+        .filter((v): v is string => typeof v === 'string' && v.length > 0)
+        .map(v => v.toLowerCase());
+
+      return fields.some(f => f.includes(searchTerm));
+    });
+  }, [state.poesie, state.search]);
+
+  // ⏱ LOAD INIZIALE
+  useEffect(() => {
+    fetchPoesie();
+    const interval = setInterval(fetchPoesie, 300000);
+    return () => clearInterval(interval);
+  }, [fetchPoesie]);
+
+  // ✅ RENDER
+  return (
+    <div className="app-container">
+      {state.selectedPoesia ? (
+        <PoetryPage
+          poesia={state.selectedPoesia}
+          onBack={handleBackToList}
+        />
+      ) : (
+        <>
+          <header className="app-header">
+            <input
+              type="search"
+              placeholder="Cerca poesie..."
+              value={state.search}
+              onChange={handleSearch}
+            />
+          </header>
+
+          {state.loading && <div className="loader">Caricamento…</div>}
+          {state.error && <div className="error">{state.error}</div>}
+
+          <main className="poesie-list">
+            {poesieFiltrate.map(poesia => (
+              <div
+                key={poesia.id}
+                className="poesia-card"
+                onClick={() => handleSelectPoesia(poesia)}
+              >
+                <h3>{poesia.title}</h3>
+                <p className="author">{poesia.author_name || 'Anonimo'}</p>
+                <p className="preview">
+                  {(poesia.content || '').slice(0, 120)}…
+                </p>
+              </div>
+            ))}
+          </main>
+        </>
+      )}
+    </div>
+  );
+};
 
 export default App;
