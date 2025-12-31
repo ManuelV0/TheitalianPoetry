@@ -966,124 +966,108 @@ useEffect(() => {
 };
 
 // --- LISTA / APP ---
-const App = () => {
-  const [state, setState] = useState<{
-    poesie: any[];
-    loading: boolean;
-    error: string | null;
-    search: string;
-    selectedPoesia: any | null;
-  }>({
-    poesie: [],
-    loading: true,
-    error: null,
-    search: '',
-    selectedPoesia: null
-  });
 
-  const fetchPoesie = useCallback(async () => {
-    setState(prev => ({ ...prev, loading: true, error: null }));
-    try {
-      const { data, error } = await supabase
-        .from('poesie')
-        .select('id, title, content, author_name, analisi_letteraria, analisi_psicologica, audio_url, created_at')
-        .order('created_at', { ascending: false })
-        .limit(50);
+const [state, setState] = useState<{
+  poesie: any[];
+  loading: boolean;
+  error: string | null;
+  search: string;
+  selectedPoesia: any | null;
+}>({
+  poesie: [],
+  loading: true,
+  error: null,
+  search: '',
+  selectedPoesia: null
+});
 
-      if (error) throw error;
-      setState(prev => ({ ...prev, poesie: data || [], loading: false }));
-    } catch (err) {
-      setState(prev => ({ ...prev, error: 'Errore nel caricamento', loading: false }));
-    }
-  }, []);
+// 🔄 FETCH POESIE
+const fetchPoesie = useCallback(async () => {
+  setState(prev => ({ ...prev, loading: true, error: null }));
 
-  useEffect(() => {
-    fetchPoesie();
-    const interval = setInterval(fetchPoesie, 300000); // 5 minuti
-    return () => clearInterval(interval);
-  }, [fetchPoesie]);
+  try {
+    const { data, error } = await supabase
+      .from('poesie')
+      .select(
+        'id, title, content, author_name, analisi_letteraria, analisi_psicologica, audio_url, created_at'
+      )
+      .order('created_at', { ascending: false })
+      .limit(50);
 
-  const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setState(prev => ({ ...prev, search: e.target.value }));
-  };
+    if (error) throw error;
 
-  const handleSelectPoesia = (poesia: any) => {
+    setState(prev => ({
+      ...prev,
+      poesie: data || [],
+      loading: false
+    }));
+  } catch (err) {
+    console.error('[FETCH POESIE ERROR]', err);
+    setState(prev => ({
+      ...prev,
+      error: 'Errore nel caricamento',
+      loading: false
+    }));
+  }
+}, []);
+
+// ▶️ SELECT POESIA + TRACK LETTURA
+const handleSelectPoesia = useCallback(
+  async (poesia: any) => {
     setState(prev => ({ ...prev, selectedPoesia: poesia }));
-  };
 
-  const handleBackToList = () => {
-    setState(prev => ({ ...prev, selectedPoesia: null }));
-  };
+    // ✅ TRACK LETTURA DA WIDGET
+    try {
+      const {
+        data: { session }
+      } = await supabase.auth.getSession();
 
-  // Inizio modifica/aggiunta - memoizzazione e sanitizzazione filtro poesie
-  const poesieFiltrate = useMemo(() => {
-    const searchTerm = state.search.trim().toLowerCase();
-    if (!searchTerm) return state.poesie;
-    return state.poesie.filter(p => {
-      const fields = [p.title, p.author_name, p.content]
-        .filter((value): value is string => typeof value === 'string' && value.length > 0)
-        .map(value => value.toLowerCase());
-      return fields.some(field => field.includes(searchTerm));
-    });
-  }, [state.poesie, state.search]);
+      if (!session) return;
 
-  return (
-    <div className="app-container">
-      {state.selectedPoesia ? (
-        <PoetryPage poesia={state.selectedPoesia} onBack={handleBackToList} />
-      ) : (
-        <>
-          <header className="app-header">
-            <div className="search-bar">
-              <input
-                type="search"
-                value={state.search}
-                onChange={handleSearch}
-                placeholder="Cerca poesie..."
-                aria-label="Cerca poesie"
-              />
-              {state.search && (
-                <button
-                  className="clear-search"
-                  onClick={() => setState(prev => ({ ...prev, search: '' }))}
-                  aria-label="Pulisci ricerca"
-                >
-                  ×
-                </button>
-              )}
-            </div>
-          </header>
+      await supabase.from('user_interactions').insert({
+        user_id: session.user.id,
+        poem_id: Number(poesia.id),
+        action: 'read',
+        weight: 2
+      });
 
-          {state.error && (
-            <div className="error-message">
-              {state.error}
-              <button onClick={fetchPoesie}>Riprova</button>
-            </div>
-          )}
+      console.log('[WIDGET TRACK] read', poesia.id);
+    } catch (err) {
+      console.error('[WIDGET TRACK ERROR]', err);
+    }
+  },
+  []
+);
 
-          <main className="poesie-list">
-            {state.loading ? (
-              <div className="loader">Caricamento...</div>
-            ) : poesieFiltrate.length > 0 ? (
-              poesieFiltrate.map(poesia => (
-                <div
-                  key={poesia.id}
-                  className="poesia-card"
-                  onClick={() => handleSelectPoesia(poesia)}
-                >
-                  <h3>{poesia.title}</h3>
-                  <p className="author">{poesia.author_name || 'Anonimo'}</p>
-                  <p className="preview">{(poesia.content || '').slice(0, 120)}...</p>
-                </div>
-              ))
-            ) : (
-              <div className="empty-state">Nessuna poesia trovata</div>
-            )}
-          </main>
-        </>
-      )}
-    </div>
-  );
+// 🔙 TORNA ALLA LISTA
+const handleBackToList = () => {
+  setState(prev => ({ ...prev, selectedPoesia: null }));
 };
+
+// 🔍 SEARCH
+const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
+  setState(prev => ({ ...prev, search: e.target.value }));
+};
+
+// 🔎 FILTRO POESIE (MEMOIZZATO)
+const poesieFiltrate = useMemo(() => {
+  const searchTerm = state.search.trim().toLowerCase();
+  if (!searchTerm) return state.poesie;
+
+  return state.poesie.filter(p => {
+    const fields = [p.title, p.author_name, p.content]
+      .filter((v): v is string => typeof v === 'string' && v.length > 0)
+      .map(v => v.toLowerCase());
+
+    return fields.some(f => f.includes(searchTerm));
+  });
+}, [state.poesie, state.search]);
+
+// ⏱ LOAD INIZIALE + REFRESH
+useEffect(() => {
+  fetchPoesie();
+  const interval = setInterval(fetchPoesie, 300000); // 5 minuti
+  return () => clearInterval(interval);
+}, [fetchPoesie]);
 
 export default App;
