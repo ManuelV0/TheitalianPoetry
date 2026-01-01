@@ -967,8 +967,6 @@ useEffect(() => {
 
 // --- LISTA / APP ---
 
-// --- LISTA / APP ---
-
 const App = () => {
   const [state, setState] = useState<{
     poesie: any[];
@@ -1014,40 +1012,33 @@ const App = () => {
     }
   }, []);
 
-  // ▶️ SELECT POESIA + TRACK LETTURA (FIX DEFINITIVO)
+  // ▶️ SELECT POESIA + TRACK LETTURA (POSTMESSAGE)
   const handleSelectPoesia = useCallback(
-    async (poesia: any) => {
-      // 🔒 NORMALIZZAZIONE CRITICA
+    (poesia: any) => {
       const poemId = Number(poesia?.id);
 
       if (!Number.isInteger(poemId) || poemId <= 0) {
-        console.warn('[TRACK] poem_id NON valido', poesia?.id, poesia);
+        console.warn('[TRACK] poem_id non valido', poesia);
         return;
       }
 
+      // ✅ UI
       setState(prev => ({ ...prev, selectedPoesia: poesia }));
 
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session) return;
-
-        const { error } = await supabase
-          .from('user_interactions')
-          .insert({
-            user_id: session.user.id,
-            poem_id: poemId,
+      // ✅ TRACK → parent (DOMINIO AUTENTICATO)
+      window.parent.postMessage(
+        {
+          type: 'TRACK_INTERACTION',
+          payload: {
             action: 'read',
+            poemId,
             weight: 2
-          });
+          }
+        },
+        '*'
+      );
 
-        if (error) {
-          console.error('[TRACK INSERT ERROR]', error);
-        } else {
-          console.log('[TRACK OK]', { poemId });
-        }
-      } catch (err) {
-        console.error('[TRACK FATAL ERROR]', err);
-      }
+      console.log('[POSTMESSAGE TRACK]', poemId);
     },
     []
   );
@@ -1062,7 +1053,7 @@ const App = () => {
     setState(prev => ({ ...prev, search: e.target.value }));
   };
 
-  // 🔎 FILTRO POESIE (MEMO)
+  // 🔎 FILTRO POESIE
   const poesieFiltrate = useMemo(() => {
     const searchTerm = state.search.trim().toLowerCase();
     if (!searchTerm) return state.poesie;
@@ -1079,7 +1070,7 @@ const App = () => {
   // ⏱ LOAD INIZIALE
   useEffect(() => {
     fetchPoesie();
-    const interval = setInterval(fetchPoesie, 300000); // 5 min
+    const interval = setInterval(fetchPoesie, 300000);
     return () => clearInterval(interval);
   }, [fetchPoesie]);
 
