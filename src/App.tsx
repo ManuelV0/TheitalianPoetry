@@ -1014,25 +1014,39 @@ const App = () => {
     }
   }, []);
 
-  // ▶️ SELECT POESIA + TRACK LETTURA
+  // ▶️ SELECT POESIA + TRACK LETTURA (FIX DEFINITIVO)
   const handleSelectPoesia = useCallback(
     async (poesia: any) => {
+      // 🔒 NORMALIZZAZIONE CRITICA
+      const poemId = Number(poesia?.id);
+
+      if (!Number.isInteger(poemId) || poemId <= 0) {
+        console.warn('[TRACK] poem_id NON valido', poesia?.id, poesia);
+        return;
+      }
+
       setState(prev => ({ ...prev, selectedPoesia: poesia }));
 
       try {
         const { data: { session } } = await supabase.auth.getSession();
         if (!session) return;
 
-        await supabase.from('user_interactions').insert({
-          user_id: session.user.id,
-          poem_id: Number(poesia.id),
-          action: 'read',
-          weight: 2
-        });
+        const { error } = await supabase
+          .from('user_interactions')
+          .insert({
+            user_id: session.user.id,
+            poem_id: poemId,
+            action: 'read',
+            weight: 2
+          });
 
-        console.log('[WIDGET TRACK] read', poesia.id);
+        if (error) {
+          console.error('[TRACK INSERT ERROR]', error);
+        } else {
+          console.log('[TRACK OK]', { poemId });
+        }
       } catch (err) {
-        console.error('[WIDGET TRACK ERROR]', err);
+        console.error('[TRACK FATAL ERROR]', err);
       }
     },
     []
@@ -1048,7 +1062,7 @@ const App = () => {
     setState(prev => ({ ...prev, search: e.target.value }));
   };
 
-  // 🔎 FILTRO POESIE
+  // 🔎 FILTRO POESIE (MEMO)
   const poesieFiltrate = useMemo(() => {
     const searchTerm = state.search.trim().toLowerCase();
     if (!searchTerm) return state.poesie;
@@ -1065,7 +1079,7 @@ const App = () => {
   // ⏱ LOAD INIZIALE
   useEffect(() => {
     fetchPoesie();
-    const interval = setInterval(fetchPoesie, 300000);
+    const interval = setInterval(fetchPoesie, 300000); // 5 min
     return () => clearInterval(interval);
   }, [fetchPoesie]);
 
